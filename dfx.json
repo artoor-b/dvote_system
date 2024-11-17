@@ -5,25 +5,22 @@
       "type": "motoko"
     },
     "dvote_system_frontend": {
-      "dependencies": [
-        "dvote_system_backend"
-      ],
-      "source": [
-        "src/dvote_system_frontend/dist"
-      ],
+      "dependencies": ["dvote_system_backend", "internet_identity"],
+      "source": ["src/dvote_system_frontend/dist"],
       "type": "assets",
       "workspace": "dvote_system_frontend"
     },
     "internet_identity": {
+      "type": "pull",
+      "id": "rdmx6-jaaaa-aaaaa-aaadq-cai",
       "candid": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity.did",
-      "frontend": {},
+      "wasm": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity_dev.wasm.gz",
       "remote": {
         "id": {
           "ic": "rdmx6-jaaaa-aaaaa-aaadq-cai"
         }
       },
-      "type": "custom",
-      "wasm": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity_dev.wasm.gz"
+      "frontend": {}
     }
   },
   "defaults": {

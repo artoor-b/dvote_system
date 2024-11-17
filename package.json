@@ -14,5 +14,9 @@
   "type": "module",
   "workspaces": [
     "src/dvote_system_frontend"
-  ]
+  ],
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "prettier-plugin-motoko": "^0.9.4"
+  }
 }
