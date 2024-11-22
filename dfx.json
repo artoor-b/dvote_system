@@ -5,8 +5,13 @@
       "type": "motoko"
     },
     "dvote_system_frontend": {
-      "dependencies": ["dvote_system_backend", "internet_identity"],
-      "source": ["src/dvote_system_frontend/dist"],
+      "dependencies": [
+        "dvote_system_backend",
+        "internet_identity"
+      ],
+      "source": [
+        "src/dvote_system_frontend/dist"
+      ],
       "type": "assets",
       "workspace": "dvote_system_frontend"
     },
@@ -26,7 +31,7 @@
   "defaults": {
     "build": {
       "args": "",
-      "packtool": ""
+      "packtool": "mops sources"
     }
   },
   "output_env_file": ".env",
