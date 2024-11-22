@@ -1,5 +1,8 @@
-import React, { useState } from "react";
+import { useQueryCall } from "@ic-reactor/react";
+import React, { useEffect, useState } from "react";
 import { toast } from "react-toastify";
+import { Spinner } from "../../components";
+import { SubmitInfo } from "./SubmitInfo";
 
 export const CreateFormPage = () => {
   const [formName, setFormName] = useState({
@@ -7,42 +10,70 @@ export const CreateFormPage = () => {
     error: false,
     errorMessage: "To pole jest wymagane.",
   });
+
   const [formDescription, setFormDescription] = useState({
     value: "",
     error: false,
     errorMessage: "To pole jest wymagane.",
   });
+
   const [formDate, setFormDate] = useState({
     value: "",
     error: false,
     errorMessage: "To pole jest wymagane.",
   });
+
+  const [formTime, setFormTime] = useState({
+    value: "",
+    error: false,
+    errorMessage: "This field is required.",
+  });
+
   const [formType, setFormType] = useState({
     value: "",
     error: false,
     errorMessage: "To pole jest wymagane.",
   });
+
   const [voters, setVoters] = useState([
     { value: "", error: false, errorMessage: "To pole jest wymagane." },
   ]);
+
   const [questions, setQuestions] = useState([
     { value: "", error: false, errorMessage: "To pole jest wymagane." },
   ]);
 
+  const [isSubmitResultStep, setIsSubmitResultStep] = useState(null);
+
+  const [shouldHide, setShouldHide] = useState(false);
+
   const today = new Date().toISOString().split("T")[0];
 
   const errorPushMessage = () =>
-    toast("Wszystkie wymagane pola nie mogą być puste!", { type: "error" });
+    toast("Uzupełnij wymagane pola", { type: "error" });
   const successPushMessage = () => {
-    toast("Zweryfikowano pomyślnie!", { type: "success" });
+    toast("Zweryfikowano pomyślnie", { type: "success" });
   };
 
-  const addVoterInput = () => {
-    // setVoters([
-    //   ...voters,
-    //   { value: "", error: false, errorMessage: "To pole jest wymagane." },
-    // ]);
+  const {
+    call: submitFormBlueprint,
+    data,
+    loading: isBlueprintUploading,
+  } = useQueryCall({
+    functionName: "createNewForm",
+    refetchOnMount: false,
+    onSuccess: () => {
+      successPushMessage();
+      setIsSubmitResultStep(() => true);
+    },
+  });
 
+  const { call: getForm, data: entry } = useQueryCall({
+    functionName: "getForm",
+    refetchOnMount: false,
+  });
+
+  const addVoterInput = () => {
     const updatedVoters = voters.map((voter) => ({
       ...voter,
       error: voter.value.trim() === "",
@@ -58,12 +89,11 @@ export const CreateFormPage = () => {
     }
   };
 
-  const addQuestionInput = () => {
-    // setQuestions([
-    //   ...questions,
-    //   { value: "", error: false, errorMessage: "To pole jest wymagane." },
-    // ]);
+  useEffect(() => {
+    console.log(data, entry);
+  }, [data, entry]);
 
+  const addQuestionInput = () => {
     const updatedQuestions = questions.map((question) => ({
       ...question,
       error: question.value.trim() === "",
@@ -113,7 +143,7 @@ export const CreateFormPage = () => {
     }
   };
 
-  const handleGenerateForm = () => {
+  const handleGenerateForm = async () => {
     let isValid = true;
     let allFieldsFilled = true;
 
@@ -140,6 +170,16 @@ export const CreateFormPage = () => {
 
     if (!formDate.value) {
       setFormDate((prev) => ({
+        ...prev,
+        error: true,
+        errorMessage: "To pole jest wymagane.",
+      }));
+      isValid = false;
+      allFieldsFilled = false;
+    }
+
+    if (!formTime.value) {
+      setFormTime((prev) => ({
         ...prev,
         error: true,
         errorMessage: "To pole jest wymagane.",
@@ -199,11 +239,11 @@ export const CreateFormPage = () => {
       }
 
       // Example custom error for form type
-      if (formType.value !== "open" && formType.value !== "secret") {
+      if (formType.value !== "public" && formType.value !== "secret") {
         setFormType((prev) => ({
           ...prev,
           error: true,
-          errorMessage: "Form type must be either 'open' or 'secret'.",
+          errorMessage: "Form type must be either 'public' or 'secret'.",
         }));
         isValid = false;
       }
@@ -212,9 +252,39 @@ export const CreateFormPage = () => {
     }
 
     if (isValid) {
-      alert("Form generated successfully!");
+      const combinedString = `${formDate.value}T${formTime.value}:00`;
+      const isoDate = new Date(combinedString);
+
+      // ISO 8601 formatted string
+      const isoFormatDate = isoDate.toISOString();
+
+      const finalObject = {
+        formName: formName.value,
+        formDescription: formDescription.value,
+        formDate: isoFormatDate,
+        formType: formType.value,
+        voters: voters.map(({ value }) => value),
+        isHidden: shouldHide,
+        questions: questions.map(({ value }, index) => ({
+          id: index,
+          questionBody: value,
+        })),
+      };
+
+      const data = await submitFormBlueprint([finalObject]);
+      const entry = await getForm([data]);
+      console.log(data);
+      console.log(entry);
+    } else {
+      errorPushMessage();
     }
   };
+
+  const onGoBack = () => setIsSubmitResultStep(() => false);
+
+  if (isBlueprintUploading) return <Spinner />;
+  if (isSubmitResultStep)
+    return <SubmitInfo isSuccessfull formId={data} onGoBack={onGoBack} />;
 
   return (
     <div className="flex flex-col p-6 min-h-min">
@@ -312,6 +382,34 @@ export const CreateFormPage = () => {
             )}
           </div>
 
+          {/* Time input */}
+          <div className="mb-4">
+            <label
+              className="block text-sm font-normal leading-4 mb-2 justify-self-start"
+              htmlFor="formTime"
+            >
+              Wybierz godzinę
+            </label>
+            <input
+              type="time"
+              id="formTime"
+              value={formTime.value}
+              onChange={(e) =>
+                setFormTime({
+                  value: e.target.value,
+                  error: false,
+                  errorMessage: "This field is required.",
+                })
+              }
+              className={`w-full border p-2 rounded-md ${formTime.error ? "border-red-500" : "border-gray-300"}`}
+            />
+            {formTime.error && (
+              <p className="text-red-500 text-xs mt-1 justify-self-start">
+                {formTime.errorMessage}
+              </p>
+            )}
+          </div>
+
           {/* Dropdown for form type */}
           <div className="mb-6">
             <label
@@ -333,7 +431,7 @@ export const CreateFormPage = () => {
               className={`w-full border p-2 rounded-md ${formType.error ? "border-red-500" : "border-gray-300"}`}
             >
               <option value="">Wybierz Typ</option>
-              <option value="open">Jawne</option>
+              <option value="public">Jawne</option>
               <option value="secret">Tajne</option>
             </select>
             {formType.error && (
@@ -341,6 +439,26 @@ export const CreateFormPage = () => {
                 {formType.errorMessage}
               </p>
             )}
+          </div>
+
+          {/* Should Hide Toggle */}
+          <div className="mb-4">
+            <label
+              className="flex flex-col text-sm font-normal leading-4 mb-2 justify-self-start"
+              htmlFor="shouldHide"
+            >
+              <p className="flex mb-2">Ukryj formularz (opcjonalnie)</p>
+              <div className="flex">
+                <input
+                  type="checkbox"
+                  id="shouldHide"
+                  checked={shouldHide}
+                  onChange={(e) => setShouldHide(e.target.checked)}
+                  className="mr-2 "
+                />
+                <span>Niewidoczny</span>
+              </div>
+            </label>
           </div>
 
           {/* Voters assignment input */}
@@ -438,6 +556,7 @@ export const CreateFormPage = () => {
           </section>
         </div>
       </section>
+
       {/* Generate Form Button */}
       <button
         type="button"

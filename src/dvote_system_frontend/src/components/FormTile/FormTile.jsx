@@ -1,7 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 
-export const FormTile = ({ id, voteType, title }) => {
+export const FormTile = ({ id, voteType, title, startDate }) => {
   const navigate = useNavigate();
   const onTileClick = (e) => {
     e.preventDefault();
@@ -12,12 +12,18 @@ export const FormTile = ({ id, voteType, title }) => {
   return (
     <button
       onClick={(e) => onTileClick(e)}
-      className="bg-gray-600 flex flex-col justify-center w-36 h-36 text-gray-100 rounded p-3 relative"
+      className="bg-gray-600 flex flex-col justify-between w-60 h-36 text-gray-100 rounded p-3"
     >
-      <p className="text-3xl leading-9 font-extralight">{title}</p>
-      <span className="text-xs leading-4 font-normal absolute bottom-3">
-        {voteType}
-      </span>
+      <p className="font-extralight flex text-left">{title}</p>
+      <div>
+        <p className="flex text-xs leading-4 font-normal">
+          {startDate.fullDate}
+        </p>
+        <p className="flex text-xs leading-4 font-normal">
+          {startDate.fullTime}
+        </p>
+        <p className="flex text-xs leading-4 font-normal">{voteType}</p>
+      </div>
     </button>
   );
 };
