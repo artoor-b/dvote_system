@@ -12,17 +12,11 @@ import Iter "mo:base/Iter";
 import AssocList "mo:base/AssocList";
 import Time "mo:base/Time";
 import DateTime "mo:datetime/DateTime";
+import Map "mo:map/Map";
+import { nhash } "mo:map/Map";
+import { thash } "mo:map/Map";
 
 shared ({ caller = initializer }) actor class () {
-  let rootUser = "6dppp-k4nln-jquo4-rxexm-od4y5-ofpim-6pgaf-pnxpl-vhn4q-jwpvg-lqe";
-
-  type User = {
-    id : Principal;
-    assignedTo : [Nat];
-    submittedForms : [Nat];
-    role : Text;
-  };
-
   type Form = {
     id : Nat;
     author : Text;
@@ -259,7 +253,9 @@ shared ({ caller = initializer }) actor class () {
     status : Text;
   };
 
-  let formsStorage = HashMap.HashMap<Text, ExtendedFormEntry>(0, Text.equal, Text.hash);
+  // STORAGE
+  stable let stableFormsStorage = Map.new<Text, ExtendedFormEntry>();
+  stable let usersStorage = Map.new<Principal, UserAssignedForm>();
 
   // Create new form
   public shared ({ caller = author }) func createNewForm(formEntry : FormEntry) : async Text {
@@ -275,13 +271,13 @@ shared ({ caller = initializer }) actor class () {
     };
 
     // validate id uniqueness
-    let getIdByForm = formsStorage.get(formId);
+    let getIdByForm = Map.get(stableFormsStorage, thash, formId);
 
     // Handle optional value properly
     switch (getIdByForm) {
       case (null) {
         // If the form ID does not exist, add it to the storage
-        formsStorage.put(formId, extendedFormEntry);
+        Map.set(stableFormsStorage, thash, formId, extendedFormEntry);
       };
       case (?_value) {
         // If the form ID already exists, reject the request
@@ -294,7 +290,7 @@ shared ({ caller = initializer }) actor class () {
 
   // Query specific form ID
   public query func getForm(id : Text) : async ?ExtendedFormEntry {
-    let getNew : ?ExtendedFormEntry = formsStorage.get(id);
+    let getNew : ?ExtendedFormEntry = Map.get(stableFormsStorage, thash, id);
 
     switch (getNew) {
       case (?form) {
@@ -308,7 +304,7 @@ shared ({ caller = initializer }) actor class () {
 
   // filter function - get forms by status
   func getFormsByStatus(formStatus : Text) : [(Text, FormEntry)] {
-    let availableForms = Iter.toArray(formsStorage.entries());
+    let availableForms = Map.toArray(stableFormsStorage);
 
     if (formStatus == "inProgress") return [];
 
@@ -327,4 +323,32 @@ shared ({ caller = initializer }) actor class () {
 
     return availableForms;
   };
+
+  //
+  // COLLECT AND HANDLE PUBLIC VOTES
+  //
+  //
+  //
+  type UserAssignedForm = {
+    assignedForms : [Text];
+    submittedForms : [Text];
+  };
+
+  type VoteAnswer = {
+    #voteFor;
+    #voteAgainst;
+    #voteAbstain;
+  };
+
+  type UserPublicAnswer = {
+    id : Text;
+    answers : [(Nat, VoteAnswer)];
+  };
+
+  type PublicResult = {
+    results : [Nat];
+    shouldCollect : Bool;
+    finished : Bool;
+  };
+
 };

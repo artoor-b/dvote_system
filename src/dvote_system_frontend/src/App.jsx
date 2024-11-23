@@ -59,6 +59,7 @@ function App() {
                     idlFactory={idlFactory}
                     canisterId={canisterId}
                   >
+                    {console.log(`actorProvider canisterID: ${canisterId}`)}
                     <Routes>
                       <Route element={<ProtectedRoute />}>
                         <Route

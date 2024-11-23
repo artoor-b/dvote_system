@@ -5,13 +5,8 @@
       "type": "motoko"
     },
     "dvote_system_frontend": {
-      "dependencies": [
-        "dvote_system_backend",
-        "internet_identity"
-      ],
-      "source": [
-        "src/dvote_system_frontend/dist"
-      ],
+      "dependencies": ["dvote_system_backend", "internet_identity"],
+      "source": ["src/dist"],
       "type": "assets",
       "workspace": "dvote_system_frontend"
     },

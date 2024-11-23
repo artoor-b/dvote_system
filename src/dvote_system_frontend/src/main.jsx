@@ -7,7 +7,7 @@ import { AgentProvider } from "@ic-reactor/react";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <AgentProvider withLocalEnv withDevtools withProcessEnv>
+    <AgentProvider withLocalEnv>
       <App />
     </AgentProvider>
   </React.StrictMode>,
