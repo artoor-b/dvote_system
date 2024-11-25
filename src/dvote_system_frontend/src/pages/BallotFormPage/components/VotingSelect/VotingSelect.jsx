@@ -9,7 +9,7 @@ export const VotingSelect = ({ questionId, setQuestionAnswers }) => {
           name={`vote-${questionId}`}
           id={`for-${questionId}`}
           onChange={() =>
-            setQuestionAnswers((prev) => ({ ...prev, [questionId]: true }))
+            setQuestionAnswers((prev) => ({ ...prev, [questionId]: "for" }))
           }
           className="w-6 accent-blue-600"
         />
@@ -23,7 +23,7 @@ export const VotingSelect = ({ questionId, setQuestionAnswers }) => {
           name={`vote-${questionId}`}
           id={`against-${questionId}`}
           onChange={() =>
-            setQuestionAnswers((prev) => ({ ...prev, [questionId]: true }))
+            setQuestionAnswers((prev) => ({ ...prev, [questionId]: "against" }))
           }
           className="w-6 accent-blue-600"
         />
@@ -37,7 +37,7 @@ export const VotingSelect = ({ questionId, setQuestionAnswers }) => {
           name={`vote-${questionId}`}
           id={`abstain-${questionId}`}
           onChange={() =>
-            setQuestionAnswers((prev) => ({ ...prev, [questionId]: true }))
+            setQuestionAnswers((prev) => ({ ...prev, [questionId]: "abstain" }))
           }
           className="w-6 accent-blue-600"
         />

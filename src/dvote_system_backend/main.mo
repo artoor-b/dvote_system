@@ -2,17 +2,20 @@ import P "mo:base/Principal";
 import Text "mo:base/Text";
 import List "mo:base/List";
 import Nat "mo:base/Nat";
-import HashMap "mo:base/HashMap";
 import Error "mo:base/Error";
 import Principal "mo:base/Principal";
 import Random "mo:base/Random";
 import Blob = "mo:base/Blob";
 import Array "mo:base/Array";
+import Buffer "mo:base/Buffer";
 import Iter "mo:base/Iter";
 import AssocList "mo:base/AssocList";
 import Time "mo:base/Time";
 import DateTime "mo:datetime/DateTime";
 import Map "mo:map/Map";
+import LocalDateTime "mo:datetime/LocalDateTime";
+import Order "mo:base/Order";
+
 import { nhash } "mo:map/Map";
 import { thash } "mo:map/Map";
 
@@ -255,7 +258,48 @@ shared ({ caller = initializer }) actor class () {
 
   // STORAGE
   stable let stableFormsStorage = Map.new<Text, ExtendedFormEntry>();
-  stable let usersStorage = Map.new<Principal, UserAssignedForm>();
+  stable let usersStorage = Map.new<Text, UserAssignedForm>();
+
+  func checkAndInsertTextBuffer(buf : Buffer.Buffer<Text>, newText : Text) {
+    switch (Buffer.indexOf<Text>(newText, buf, Text.equal)) {
+      case null { buf.add(newText) };
+      case _ { /* Do nothing, element already exists */ };
+    };
+  };
+
+  // Assiggn users to usersStorage
+  // create user entity if not found in userStorage
+  // There will be stored info about assigned form ids and completed form ids by specific user
+  private func assignUsersToForm(formIdToAssign : Text, votersToAssign : [Text]) {
+    // Iterate through each user in the votersToAssign array
+    for (userId in votersToAssign.vals()) {
+      // Check if the user already exists in usersStorage
+      let userEntry = Map.get(usersStorage, thash, userId);
+      switch (userEntry) {
+        // If user exists usersStorage[userId].assignedForms/submittedForms
+        case (?userEntry) {
+          // Check if formId already exists in assignedForms
+          var assignedFormsBuffer = Buffer.fromArray<Text>(userEntry.assignedForms);
+          checkAndInsertTextBuffer(assignedFormsBuffer, formIdToAssign);
+          var updatedAssignedForms = Buffer.toArray(assignedFormsBuffer);
+
+          if (Array.equal(updatedAssignedForms, userEntry.assignedForms, Text.equal) == false) {
+            userEntry.assignedForms := updatedAssignedForms;
+            Map.set(usersStorage, thash, userId, userEntry);
+          };
+        };
+        // If user does not exist
+        case null {
+          // Create a new entry for the user and assign the formId
+          let newEntry : UserAssignedForm = {
+            var assignedForms = [formIdToAssign];
+            var submittedForms = [];
+          };
+          Map.set(usersStorage, thash, userId, newEntry);
+        };
+      };
+    };
+  };
 
   // Create new form
   public shared ({ caller = author }) func createNewForm(formEntry : FormEntry) : async Text {
@@ -278,6 +322,9 @@ shared ({ caller = initializer }) actor class () {
       case (null) {
         // If the form ID does not exist, add it to the storage
         Map.set(stableFormsStorage, thash, formId, extendedFormEntry);
+        // Create dedicated public form aggregator
+        await startPublicVoteAggregator(formId);
+        assignUsersToForm(formId, formEntry.voters);
       };
       case (?_value) {
         // If the form ID already exists, reject the request
@@ -330,8 +377,28 @@ shared ({ caller = initializer }) actor class () {
   //
   //
   type UserAssignedForm = {
+    var assignedForms : [Text];
+    var submittedForms : [Text];
+  };
+
+  type UserAssignedFormShared = {
     assignedForms : [Text];
     submittedForms : [Text];
+  };
+
+  public func getUserStorage() : async [(Text, UserAssignedFormShared)] {
+    Array.map<(Text, UserAssignedForm), (Text, UserAssignedFormShared)>(
+      Map.toArray(usersStorage),
+      func((id : Text, userForm : UserAssignedForm)) : (Text, UserAssignedFormShared) {
+        (
+          id,
+          {
+            assignedForms = userForm.assignedForms;
+            submittedForms = userForm.submittedForms;
+          },
+        );
+      },
+    );
   };
 
   type VoteAnswer = {
@@ -340,15 +407,150 @@ shared ({ caller = initializer }) actor class () {
     #voteAbstain;
   };
 
-  type UserPublicAnswer = {
-    id : Text;
-    answers : [(Nat, VoteAnswer)];
-  };
+  //
+  // PUBLIC FORM STORAGE
+  //
+  //
+  stable let publicResultsStorage = Map.new<Text, PublicForm>();
 
-  type PublicResult = {
-    results : [Nat];
+  // results: principal-id and its corresponding array with answers to specific form id
+  type PublicForm = {
+    results : Map.Map<Text, PublicQuestionAnswers>; // PrincipalText -> [(q1a),(q2a),(q3a)]
     shouldCollect : Bool;
     finished : Bool;
   };
 
+  type PublicFormShared = {
+    results : [(Text, PublicQuestionAnswers)];
+    shouldCollect : Bool;
+    finished : Bool;
+  };
+
+  type PublicQuestionAnswers = [{
+    questionId : Nat;
+    answer : Text;
+  }];
+
+  // create entry to collect votes from public form
+  public func startPublicVoteAggregator(formId : Text) : async () {
+    let newPublicForm : PublicForm = {
+      results = Map.new<Text, PublicQuestionAnswers>();
+      shouldCollect = true;
+      finished = false;
+    };
+
+    Map.set(publicResultsStorage, thash, formId, newPublicForm);
+  };
+
+  // get all data from public results
+  public query func getPublicVoteAggregatedData() : async [(Text, PublicFormShared)] {
+    var convertToArr = Map.toArray(publicResultsStorage);
+
+    Array.map<(Text, PublicForm), (Text, PublicFormShared)>(
+      convertToArr,
+      func((formId : Text, form : PublicForm)) : (Text, PublicFormShared) {
+        let sharedForm : PublicFormShared = {
+          results = Map.toArray(form.results);
+          shouldCollect = form.shouldCollect;
+          finished = form.finished;
+        };
+        (formId, sharedForm);
+      },
+    );
+  };
+
+  // RETRIEVE PUBLIC VOTE AND STORE IN PUBLIC VOTE AGGREGATOR ENTITY
+  public shared ({ caller = submitter }) func storePublicVoteResult(formId : Text, questionsAnswers : PublicQuestionAnswers) : async Bool {
+    var submitterPrincipalText = P.toText(submitter);
+    var getFormAggregator = Map.get(publicResultsStorage, thash, formId);
+
+    switch (getFormAggregator) {
+      case (?entry) {
+        Map.set(entry.results, thash, submitterPrincipalText, questionsAnswers);
+
+        return true;
+      };
+      case (null) { false };
+    };
+  };
+
+  public shared ({ caller = test }) func checkIfCallerIsAssignedToForm(formId : Text) : async ?ExtendedFormEntry {
+    var voterPrincipalId = P.toText(test);
+    let getNew : ?ExtendedFormEntry = Map.get(stableFormsStorage, thash, formId);
+
+    switch (getNew) {
+      case (?form) {
+        var getVoterAssignedForms = Map.get(usersStorage, thash, voterPrincipalId);
+        switch (getVoterAssignedForms) {
+          case (?entry) {
+            var getAssignedFormIndex = Array.indexOf<Text>(formId, entry.assignedForms, Text.equal);
+            switch (getAssignedFormIndex) {
+              case (?_val) { ?form };
+              case (null) { null };
+            };
+          };
+          case (null) { null };
+        };
+
+      };
+      case null {
+        null;
+      };
+    };
+  };
+
+  // start form by specific user - check if assigned to form and check date constraint
+  public shared ({ caller = voter }) func startForm(formId : Text) : async ?ExtendedFormEntry {
+    var voterPrincipalId = P.toText(voter);
+    let getNew : ?ExtendedFormEntry = Map.get(stableFormsStorage, thash, formId);
+
+    switch (getNew) {
+      case (?form) {
+        let checkDateConstraint = await getTime(form.formDate);
+        var getVoterAssignedForms = Map.get(usersStorage, thash, voterPrincipalId);
+        // if current date is greater than formDate, allow start
+        if (Order.isLess(checkDateConstraint)) {
+          switch (getVoterAssignedForms) {
+            case (?entry) {
+              var getAssignedFormIndex = Array.indexOf<Text>(formId, entry.assignedForms, Text.equal);
+              switch (getAssignedFormIndex) {
+                case (?_val) { ?form };
+                case (null) { null };
+              };
+            };
+            case (null) { null };
+          };
+        } else {
+          null;
+        };
+      };
+      case null {
+        null;
+      };
+    };
+  };
+
+  func isoToNanoseconds(isoDate : Text) : Time.Time {
+    let format = "YYYY-MM-DDTHH:mm:ss.000Z";
+
+    let dateTime = DateTime.fromText(isoDate, format);
+    switch (dateTime) {
+      case (null) {
+        // Handle invalid date string
+        0;
+      };
+      case (?dt) {
+        dt.toTime();
+      };
+    };
+  };
+
+  public func getTime(checkTime : Text) : async { #equal; #greater; #less } {
+    let currTime = DateTime.now();
+    let checkedTime = isoToNanoseconds(checkTime);
+    let getDate = DateTime.fromTime(checkedTime);
+    let comp = DateTime.compare(getDate, currTime);
+
+    return comp;
+  };
 };
