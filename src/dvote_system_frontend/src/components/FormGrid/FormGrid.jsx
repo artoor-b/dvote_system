@@ -15,13 +15,15 @@ export const FormGrid = ({ filterStatus }) => {
     data: formsData,
     loading,
   } = useQueryCall({
-    functionName: "getAllForms",
+    functionName: "getUserForms",
     args: [filterStatus],
   });
 
   const fetchForms = async () => {
     console.log("FETCHING");
-    if (filterStatus) await call([filterStatus]);
+    if (filterStatus) {
+      await call([filterStatus]);
+    }
   };
 
   useEffect(() => {
@@ -32,6 +34,8 @@ export const FormGrid = ({ filterStatus }) => {
   useEffect(() => {
     if (!loading && formsData && formsData.length >= 0)
       setIsDataLoaded(() => true);
+    console.log(formsData);
+    console.log(process.env.DFX_NETWORK);
   }, [formsData, loading, filterStatus]);
 
   const renderFormTiles = () =>

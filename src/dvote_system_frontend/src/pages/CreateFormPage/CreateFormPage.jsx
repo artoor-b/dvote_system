@@ -3,8 +3,9 @@ import React, { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { Spinner } from "../../components";
 import { SubmitInfo } from "./SubmitInfo";
+import { createIsoString } from "./utils/createIsoString";
 
-export const CreateFormPage = () => {
+export const CreateFormPage = ({ userRole }) => {
   const [formName, setFormName] = useState({
     value: "",
     error: false,
@@ -23,7 +24,19 @@ export const CreateFormPage = () => {
     errorMessage: "To pole jest wymagane.",
   });
 
+  const [formEndDate, setFormEndDate] = useState({
+    value: "",
+    error: false,
+    errorMessage: "To pole jest wymagane.",
+  });
+
   const [formTime, setFormTime] = useState({
+    value: "",
+    error: false,
+    errorMessage: "This field is required.",
+  });
+
+  const [formEndTime, setFormEndTime] = useState({
     value: "",
     error: false,
     errorMessage: "This field is required.",
@@ -65,6 +78,9 @@ export const CreateFormPage = () => {
     onSuccess: () => {
       successPushMessage();
       setIsSubmitResultStep(() => true);
+    },
+    onError: (e) => {
+      toast(e.reject_message, { type: "error" });
     },
   });
 
@@ -178,8 +194,28 @@ export const CreateFormPage = () => {
       allFieldsFilled = false;
     }
 
+    if (!formEndDate.value) {
+      setFormEndDate((prev) => ({
+        ...prev,
+        error: true,
+        errorMessage: "To pole jest wymagane.",
+      }));
+      isValid = false;
+      allFieldsFilled = false;
+    }
+
     if (!formTime.value) {
       setFormTime((prev) => ({
+        ...prev,
+        error: true,
+        errorMessage: "To pole jest wymagane.",
+      }));
+      isValid = false;
+      allFieldsFilled = false;
+    }
+
+    if (!formEndTime.value) {
+      setFormEndTime((prev) => ({
         ...prev,
         error: true,
         errorMessage: "To pole jest wymagane.",
@@ -252,16 +288,20 @@ export const CreateFormPage = () => {
     }
 
     if (isValid) {
-      const combinedString = `${formDate.value}T${formTime.value}:00`;
-      const isoDate = new Date(combinedString);
-
-      // ISO 8601 formatted string
-      const isoFormatDate = isoDate.toISOString();
+      const isoFormatStartDate = createIsoString(
+        formDate.value,
+        formTime.value,
+      );
+      const isoFormatEndDate = createIsoString(
+        formEndDate.value,
+        formEndTime.value,
+      );
 
       const finalObject = {
         formName: formName.value,
         formDescription: formDescription.value,
-        formDate: isoFormatDate,
+        formDate: isoFormatStartDate,
+        formEndDate: isoFormatEndDate,
         formType: formType.value,
         voters: voters.map(({ value }) => value),
         isHidden: shouldHide,
@@ -271,10 +311,15 @@ export const CreateFormPage = () => {
         })),
       };
 
-      const data = await submitFormBlueprint([finalObject]);
-      const entry = await getForm([data]);
-      console.log(data);
-      console.log(entry);
+      try {
+        const data = await submitFormBlueprint([finalObject]);
+        const entry = await getForm([data]);
+
+        console.log(data);
+        console.log(entry);
+      } catch (error) {
+        console.log(error);
+      }
     } else {
       errorPushMessage();
     }
@@ -326,88 +371,151 @@ export const CreateFormPage = () => {
 
           {/* Form description input */}
           <div className="mb-6">
-            <label
-              className="block text-sm font-normal leading-4 mb-2 justify-self-start"
-              htmlFor="formName"
-            >
-              Opis formularza
-            </label>
-            <textarea
-              type="text"
-              id="formName"
-              value={formDescription.value}
-              onChange={(e) =>
-                setFormDescription({
-                  value: e.target.value,
-                  error: false,
-                  errorMessage: "To pole jest wymagane.",
-                })
-              }
-              placeholder="Wprowadź opis formularza"
-              className={`min-h-10 max-h-64 w-full border p-2 rounded-md ${formDescription.error ? "border-red-500" : "border-gray-300"}`}
-            />
-            {formDescription.error && (
-              <p className="text-red-500 text-xs mt-1 justify-self-start">
-                {formDescription.errorMessage}
-              </p>
-            )}
+            <div>
+              <label
+                className="block text-sm font-normal leading-4 mb-2 justify-self-start"
+                htmlFor="formName"
+              >
+                Opis formularza
+              </label>
+              <textarea
+                type="text"
+                id="formName"
+                value={formDescription.value}
+                onChange={(e) =>
+                  setFormDescription({
+                    value: e.target.value,
+                    error: false,
+                    errorMessage: "To pole jest wymagane.",
+                  })
+                }
+                placeholder="Wprowadź opis formularza"
+                className={`min-h-10 max-h-64 w-full border p-2 rounded-md ${formDescription.error ? "border-red-500" : "border-gray-300"}`}
+              />
+              {formDescription.error && (
+                <p className="text-red-500 text-xs mt-1 justify-self-start">
+                  {formDescription.errorMessage}
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Date input */}
-          <div className="mb-6">
-            <label
-              className="block text-sm font-normal leading-4 mb-2 justify-self-start"
-              htmlFor="formDate"
-            >
-              Wybierz datę rozpoczęcia
-            </label>
-            <input
-              type="date"
-              id="formDate"
-              value={formDate.value}
-              onChange={(e) =>
-                setFormDate({
-                  value: e.target.value,
-                  error: false,
-                  errorMessage: "To pole jest wymagane.",
-                })
-              }
-              min={today}
-              className={`w-full border p-2 rounded-md ${formDate.error ? "border-red-500" : "border-gray-300"}`}
-            />
-            {formDate.error && (
-              <p className="text-red-500 text-xs mt-1 justify-self-start">
-                {formDate.errorMessage}
-              </p>
-            )}
+          <div className="mb-6 flex justify-between">
+            <div>
+              <label
+                className="block text-sm font-normal leading-4 mb-2 justify-self-start"
+                htmlFor="formDate"
+              >
+                Wybierz datę rozpoczęcia
+              </label>
+              <input
+                type="date"
+                id="formDate"
+                value={formDate.value}
+                onChange={(e) =>
+                  setFormDate({
+                    value: e.target.value,
+                    error: false,
+                    errorMessage: "To pole jest wymagane.",
+                  })
+                }
+                min={today}
+                className={`w-full border p-2 rounded-md ${formDate.error ? "border-red-500" : "border-gray-300"}`}
+              />
+              {formDate.error && (
+                <p className="text-red-500 text-xs mt-1 justify-self-start">
+                  {formDate.errorMessage}
+                </p>
+              )}
+            </div>
+
+            {/* Time input */}
+            <div className="mb-4">
+              <label
+                className="block text-sm font-normal leading-4 mb-2 justify-self-start"
+                htmlFor="formTime"
+              >
+                Wybierz godzinę
+              </label>
+              <input
+                type="time"
+                id="formTime"
+                value={formTime.value}
+                onChange={(e) =>
+                  setFormTime({
+                    value: e.target.value,
+                    error: false,
+                    errorMessage: "This field is required.",
+                  })
+                }
+                className={`w-full border p-2 rounded-md ${formTime.error ? "border-red-500" : "border-gray-300"}`}
+              />
+              {formTime.error && (
+                <p className="text-red-500 text-xs mt-1 justify-self-start">
+                  {formTime.errorMessage}
+                </p>
+              )}
+            </div>
           </div>
 
-          {/* Time input */}
-          <div className="mb-4">
-            <label
-              className="block text-sm font-normal leading-4 mb-2 justify-self-start"
-              htmlFor="formTime"
-            >
-              Wybierz godzinę
-            </label>
-            <input
-              type="time"
-              id="formTime"
-              value={formTime.value}
-              onChange={(e) =>
-                setFormTime({
-                  value: e.target.value,
-                  error: false,
-                  errorMessage: "This field is required.",
-                })
-              }
-              className={`w-full border p-2 rounded-md ${formTime.error ? "border-red-500" : "border-gray-300"}`}
-            />
-            {formTime.error && (
-              <p className="text-red-500 text-xs mt-1 justify-self-start">
-                {formTime.errorMessage}
-              </p>
-            )}
+          {/* end Date input */}
+          <div className="mb-6 flex justify-between">
+            <div>
+              <label
+                className="block text-sm font-normal leading-4 mb-2 justify-self-start"
+                htmlFor="formEndDate"
+              >
+                Wybierz datę zakończenia
+              </label>
+              <input
+                type="date"
+                id="formEndDate"
+                value={formEndDate.value}
+                onChange={(e) =>
+                  setFormEndDate({
+                    value: e.target.value,
+                    error: false,
+                    errorMessage: "To pole jest wymagane.",
+                  })
+                }
+                min={today}
+                className={`w-full border p-2 rounded-md ${formEndDate.error ? "border-red-500" : "border-gray-300"}`}
+              />
+              {formEndDate.error && (
+                <p className="text-red-500 text-xs mt-1 justify-self-start">
+                  {formEndDate.errorMessage}
+                </p>
+              )}
+            </div>
+
+            {/* end Time input */}
+            <div className="mb-4">
+              <label
+                className="block text-sm font-normal leading-4 mb-2 justify-self-start"
+                htmlFor="formEndTime"
+              >
+                Wybierz godzinę zakończenia
+              </label>
+              <input
+                type="time"
+                id="formEndTime"
+                value={formEndTime.value}
+                onChange={(e) =>
+                  setFormEndTime({
+                    value: e.target.value,
+                    error: false,
+                    errorMessage: "This field is required.",
+                  })
+                }
+                className={`w-full border p-2 rounded-md ${formEndTime.error ? "border-red-500" : "border-gray-300"}`}
+              />
+              {formEndTime.error && (
+                <p className="text-red-500 text-xs mt-1 justify-self-start">
+                  {formEndTime.errorMessage}
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Dropdown for form type */}

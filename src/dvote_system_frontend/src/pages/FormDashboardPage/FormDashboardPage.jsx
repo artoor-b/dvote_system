@@ -5,7 +5,11 @@ import { useUserPrincipal, useAuth } from "@ic-reactor/react";
 
 import { useSearchParams } from "react-router-dom";
 
-export const FormDashboardPage = () => {
+export const FormDashboardPage = ({ userRole }) => {
+  useEffect(() => {
+    console.log("sdfsdfg", userRole);
+  }, [userRole]);
+
   const userPrincipal = useUserPrincipal();
   const [searchParams, setSearchParams] = useSearchParams();
   console.log("userPrincipal", userPrincipal?.toText());

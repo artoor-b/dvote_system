@@ -1,15 +1,9 @@
+import React, { useContext } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@ic-reactor/react";
 import { toast } from "react-toastify";
 
-export const NavBar = () => {
-  const { logout, identity, authenticated } = useAuth({
-    onLoggedOut: () => {
-      console.log("loggedout");
-      toast("Wylogowano", { type: "warning" });
-    },
-  });
-
+export const NavBar = ({ logout, identity, authenticated, userRole }) => {
   const userIdentity = identity?.getPrincipal()?.toText();
   const isAnonymous = identity?.getPrincipal()?.isAnonymous();
 
@@ -44,7 +38,7 @@ export const NavBar = () => {
       <p className="text-right">
         {isAnonymous
           ? "Użytkownik anonimowy"
-          : `Zalogowano jako: ${userIdentity}`}
+          : `Zalogowano jako: ${userIdentity} ${userRole ?? ""}`}
       </p>
     </nav>
   );

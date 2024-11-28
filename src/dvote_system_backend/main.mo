@@ -70,32 +70,42 @@ shared ({ caller = initializer }) actor class () {
     #owner;
     #admin;
     #authorized;
+    #president; //prezes
+    #organizationSecretary; //sekretarz organizacji
+    #meetingChairperson; //przewodniczacy zebrania
+    #meetingSecretary; //sekretarz zebrania
+    #voter;
   };
 
   public type Permission = {
     #assign_role;
+    #create_form;
+    #vote;
     #lowest;
   };
 
   private stable var roles : AssocList.AssocList<Principal, Role> = List.nil();
+  // collect users requests for roles
   private stable var role_requests : AssocList.AssocList<Principal, Role> = List.nil();
+
+  public shared ({ caller }) func callerPrincipal() : async Principal {
+    return caller;
+  };
 
   func principal_eq(a : Principal, b : Principal) : Bool {
     return a == b;
   };
 
-  func get_role(pal : Principal) : ?Role {
-    if (pal == initializer) {
-      ? #owner;
-    } else {
-      AssocList.find<Principal, Role>(roles, pal, principal_eq);
-    };
+  public func getInitializer() : async Text {
+    P.toText(initializer);
   };
 
   func has_permission(pal : Principal, perm : Permission) : Bool {
     let role = get_role(pal);
     switch (role, perm) {
       case (? #owner or ? #admin, _) true;
+      case (? #organizationSecretary or ? #meetingChairperson or ? #meetingSecretary, #create_form or #vote) true;
+      case (? #voter, #vote) true;
       case (? #authorized, #lowest) true;
       case (_, _) false;
     };
@@ -123,21 +133,29 @@ shared ({ caller = initializer }) actor class () {
     role_requests := AssocList.replace<Principal, Role>(role_requests, assignee, principal_eq, null).0;
   };
 
-  public shared ({ caller }) func request_role(role : Role) : async Principal {
-    role_requests := AssocList.replace<Principal, Role>(role_requests, caller, principal_eq, ?role).0;
-    return caller;
-  };
-
-  public shared ({ caller }) func callerPrincipal() : async Principal {
-    return caller;
+  func get_role(pal : Principal) : ?Role {
+    if (pal == initializer) {
+      ? #owner;
+    } else {
+      AssocList.find<Principal, Role>(roles, pal, principal_eq);
+    };
   };
 
   public shared ({ caller }) func my_role() : async ?Role {
-    return get_role(caller);
+    var findRole = get_role(caller);
+
+    // get user role, by default - assign role #voter if user does not have any
+    if (findRole == null) {
+      roles := AssocList.replace<Principal, Role>(roles, caller, principal_eq, ? #voter).0;
+      return get_role(caller);
+    } else {
+      return findRole;
+    };
   };
 
-  public shared ({ caller }) func my_role_request() : async ?Role {
-    AssocList.find<Principal, Role>(role_requests, caller, principal_eq);
+  public shared ({ caller }) func get_roles() : async List.List<(Principal, Role)> {
+    await require_permission(caller, #assign_role);
+    return roles;
   };
 
   public shared ({ caller }) func get_role_requests() : async List.List<(Principal, Role)> {
@@ -145,9 +163,13 @@ shared ({ caller = initializer }) actor class () {
     return role_requests;
   };
 
-  public shared ({ caller }) func get_roles() : async List.List<(Principal, Role)> {
-    await require_permission(caller, #assign_role);
-    return roles;
+  public shared ({ caller }) func my_role_request() : async ?Role {
+    AssocList.find<Principal, Role>(role_requests, caller, principal_eq);
+  };
+
+  public shared ({ caller }) func request_role(role : Role) : async Principal {
+    role_requests := AssocList.replace<Principal, Role>(role_requests, caller, principal_eq, ?role).0;
+    return caller;
   };
 
   //
@@ -208,6 +230,7 @@ shared ({ caller = initializer }) actor class () {
     formName : Text;
     formDescription : Text;
     formDate : Text;
+    formEndDate : Text;
     formType : Text;
     voters : [Text];
     questions : [{ id : Int; questionBody : Text }];
@@ -303,6 +326,8 @@ shared ({ caller = initializer }) actor class () {
 
   // Create new form
   public shared ({ caller = author }) func createNewForm(formEntry : FormEntry) : async Text {
+    await require_permission(author, #create_form);
+
     let formId : Text = await generateRandomId();
     let creationTime = DateTime.now();
     let isoCreationTime = DateTime.toTextAdvanced(creationTime, #iso);
@@ -353,8 +378,6 @@ shared ({ caller = initializer }) actor class () {
   func getFormsByStatus(formStatus : Text) : [(Text, FormEntry)] {
     let availableForms = Map.toArray(stableFormsStorage);
 
-    if (formStatus == "inProgress") return [];
-
     let filteredEntries = Array.filter<(Text, ExtendedFormEntry)>(
       availableForms,
       func((_, form)) = (form.isHidden == false and (form.status == formStatus)),
@@ -369,6 +392,46 @@ shared ({ caller = initializer }) actor class () {
     let availableForms = getFormsByStatus(formType);
 
     return availableForms;
+  };
+
+  public query ({ caller = user }) func getUserForms(formType : Text) : async [(Text, FormEntry)] {
+    let userTextId = P.toText(user);
+    let availableForms = Map.toArray(stableFormsStorage);
+
+    func hasVoter((_, entry) : (Text, FormEntry)) : Bool {
+      Array.find<Text>(entry.voters, func(id) { id == userTextId }) != null;
+    };
+
+    func checkDate((_, entry) : (Text, FormEntry)) : Bool {
+      if (formType == "notStarted" or formType == "inProgress") {
+        // incoming and current event currentDate < endDate
+        var isEndDateGreater = Order.isGreater(getTime(entry.formEndDate));
+        if (isEndDateGreater == true) {
+          true;
+        } else {
+          false;
+        };
+      } else if (formType == "completed") {
+        var isEndDateLess = Order.isLess(getTime(entry.formEndDate));
+
+        if (isEndDateLess == true) {
+          true;
+        } else {
+          false;
+        };
+      } else {
+        return false;
+      };
+    };
+
+    let filteredEntries = Array.filter<(Text, ExtendedFormEntry)>(
+      availableForms,
+      func((id, form)) = (
+        form.isHidden == false and (form.status == formType) and hasVoter((id, form)) and checkDate((id, form))
+      ),
+    );
+
+    return filteredEntries;
   };
 
   //
@@ -463,10 +526,29 @@ shared ({ caller = initializer }) actor class () {
   public shared ({ caller = submitter }) func storePublicVoteResult(formId : Text, questionsAnswers : PublicQuestionAnswers) : async Bool {
     var submitterPrincipalText = P.toText(submitter);
     var getFormAggregator = Map.get(publicResultsStorage, thash, formId);
+    var getUserStorage = Map.get(usersStorage, thash, submitterPrincipalText);
 
     switch (getFormAggregator) {
       case (?entry) {
         Map.set(entry.results, thash, submitterPrincipalText, questionsAnswers);
+
+        switch (getUserStorage) {
+          case (?entry) {
+            var getSubmittedForm = Array.indexOf<Text>(formId, entry.submittedForms, Text.equal);
+
+            switch (getSubmittedForm) {
+              case (?_value) { return false };
+              case (null) {
+                var e = Array.append<Text>(entry.submittedForms, [formId]);
+                entry.submittedForms := e;
+                return true;
+              };
+            };
+
+            return true;
+          };
+          case (null) { return false };
+        };
 
         return true;
       };
@@ -503,25 +585,54 @@ shared ({ caller = initializer }) actor class () {
   public shared ({ caller = voter }) func startForm(formId : Text) : async ?ExtendedFormEntry {
     var voterPrincipalId = P.toText(voter);
     let getNew : ?ExtendedFormEntry = Map.get(stableFormsStorage, thash, formId);
+    var getSubmittedUserForms = Map.get(usersStorage, thash, voterPrincipalId);
+
+    // check if user did not record previous vote
+    var shouldUserStart : Bool = false;
+    switch (getSubmittedUserForms) {
+      case (?entry) {
+        var submittedForms = Array.indexOf<Text>(formId, entry.submittedForms, Text.equal);
+
+        switch (submittedForms) {
+          case (?_value) { shouldUserStart := false };
+          case (null) { shouldUserStart := true };
+        };
+      };
+      case (null) shouldUserStart := false;
+    };
 
     switch (getNew) {
       case (?form) {
-        let checkDateConstraint = await getTime(form.formDate);
+        let checkDateConstraint = getTime(form.formDate);
+        let checkEndDateConstraint = getTime(form.formEndDate);
         var getVoterAssignedForms = Map.get(usersStorage, thash, voterPrincipalId);
-        // if current date is greater than formDate, allow start
-        if (Order.isLess(checkDateConstraint)) {
-          switch (getVoterAssignedForms) {
-            case (?entry) {
-              var getAssignedFormIndex = Array.indexOf<Text>(formId, entry.assignedForms, Text.equal);
-              switch (getAssignedFormIndex) {
-                case (?_val) { ?form };
-                case (null) { null };
+
+        // check if current date is between start and end date
+        var isLess = Order.isLess(checkDateConstraint);
+        var isGreater = Order.isGreater(checkEndDateConstraint);
+        switch (isLess) {
+          case (true) {
+            switch (isGreater) {
+              case (true) {
+                switch (getVoterAssignedForms) {
+                  case (?entry) {
+                    var getAssignedFormIndex = Array.indexOf<Text>(formId, entry.assignedForms, Text.equal);
+                    switch (getAssignedFormIndex) {
+                      case (?_val) {
+                        if (shouldUserStart == true) {
+                          return ?form;
+                        } else { throw Error.reject("Vote already recorded") };
+                      };
+                      case (null) { null };
+                    };
+                  };
+                  case (null) { null };
+                };
               };
+              case (false) { throw Error.reject("Form expired") };
             };
-            case (null) { null };
           };
-        } else {
-          null;
+          case (false) { throw Error.reject("Form not started yet") };
         };
       };
       case null {
@@ -545,7 +656,7 @@ shared ({ caller = initializer }) actor class () {
     };
   };
 
-  public func getTime(checkTime : Text) : async { #equal; #greater; #less } {
+  func getTime(checkTime : Text) : { #equal; #greater; #less } {
     let currTime = DateTime.now();
     let checkedTime = isoToNanoseconds(checkTime);
     let getDate = DateTime.fromTime(checkedTime);

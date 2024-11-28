@@ -1,3 +1,4 @@
+import React from "react";
 import "./App.css";
 import { Footer, NavBar } from "./components";
 import {
@@ -23,6 +24,10 @@ import {
   canisterId,
 } from "../../declarations/dvote_system_backend";
 import { ErrorBoundary } from "react-error-boundary";
+import { withUserRole } from "./auth/withUserRole";
+import { UserRoleWrapper } from "./auth/UserRoleWrapper";
+
+import { useAuth } from "@ic-reactor/react";
 
 function Fallback({ error, resetErrorBoundary }) {
   // Call resetErrorBoundary() to reset the error boundary and retry the render.
@@ -37,13 +42,28 @@ function Fallback({ error, resetErrorBoundary }) {
 }
 
 function App() {
-  const { authenticated } = useAuthState();
+  // const { authenticated } = useAuthState();
+
+  const { logout, identity, authenticated } = useAuth({
+    onLoggedOut: () => {
+      console.log("loggedout");
+      toast("Wylogowano", { type: "warning" });
+    },
+  });
+
+  const FormDashboardPageWithRole = withUserRole(FormDashboardPage);
+  const CreateFormPageWithRole = withUserRole(CreateFormPage);
+  const ManagementDashboardPageWithRole = withUserRole(ManagementDashboardPage);
+  const BallotFormPageWithRole = withUserRole(BallotFormPage);
+  const NavBarWithRole = withUserRole(NavBar);
 
   return (
     <Router>
-      <NavBar />
       {!authenticated ? (
-        <LoginPage />
+        <>
+          <NavBar identity={identity} authenticated={authenticated} />
+          <LoginPage />
+        </>
       ) : (
         <>
           <ErrorBoundary
@@ -59,30 +79,40 @@ function App() {
                     idlFactory={idlFactory}
                     canisterId={canisterId}
                   >
-                    {console.log(`actorProvider canisterID: ${canisterId}`)}
-                    <Routes>
-                      <Route element={<ProtectedRoute />}>
-                        <Route
-                          path="/"
-                          element={<Navigate to="/forms" replace />}
-                        />
-                        <Route path="/forms" element={<FormDashboardPage />} />
-                        <Route path="/form/:id" element={<FormPage />} />
-                        <Route
-                          path="/form/:id/vote"
-                          element={<BallotFormPage />}
-                        />
-                        <Route
-                          path="/manage"
-                          element={<ManagementDashboardPage />}
-                        />
-                        <Route
-                          path="/manage/form/create"
-                          element={<CreateFormPage />}
-                        />
-                      </Route>
-                      <Route path="*" element={<NotFoundPage />} />
-                    </Routes>
+                    <UserRoleWrapper>
+                      <NavBarWithRole
+                        logout={logout}
+                        identity={identity}
+                        authenticated={authenticated}
+                      />
+                      {console.log(`actorProvider canisterID: ${canisterId}`)}
+                      <Routes>
+                        <Route element={<ProtectedRoute />}>
+                          <Route
+                            path="/"
+                            element={<Navigate to="/forms" replace />}
+                          />
+                          <Route
+                            path="/forms"
+                            element={<FormDashboardPageWithRole />}
+                          />
+                          <Route path="/form/:id" element={<FormPage />} />
+                          <Route
+                            path="/form/:id/vote"
+                            element={<BallotFormPageWithRole />}
+                          />
+                          <Route
+                            path="/manage"
+                            element={<ManagementDashboardPageWithRole />}
+                          />
+                          <Route
+                            path="/manage/form/create"
+                            element={<CreateFormPageWithRole />}
+                          />
+                        </Route>
+                        <Route path="*" element={<NotFoundPage />} />
+                      </Routes>
+                    </UserRoleWrapper>
                   </ActorProvider>
                 }
               />

@@ -4,6 +4,8 @@ import { BackButton } from "../../components/BackButton/BackButton";
 import { useQueryCall } from "@ic-reactor/react";
 import { Spinner } from "../../components";
 import { toast } from "react-toastify";
+import { principal } from "@ic-reactor/react/dist/utils";
+import { transformIsoDateString } from "../../utils/transformIsoDateString";
 
 export const FormPage = () => {
   let { id } = useParams();
@@ -31,15 +33,13 @@ export const FormPage = () => {
     args: [id],
     refetchOnMount: false,
     onSuccess: () => console.log("SUCCESS"),
+    onError: (e) => toast(e.reject_message, { type: "error" }),
   });
 
   const startVoting = async () => {
-    try {
-      const [data] = await startForm();
-      if (data && Object.keys(data).length) navigate(`/form/${id}/vote`);
-    } catch {
-      toast("something went wrong", { type: "error" });
-    }
+    const [data] = await startForm();
+    console.log(data);
+    if (data && Object.keys(data).length) navigate(`/form/${id}/vote`);
   };
 
   useEffect(() => {
@@ -48,8 +48,12 @@ export const FormPage = () => {
       setIsFormReady(() => true);
   }, [votingFormData, startFormLoading]);
 
-  const { formName, formDescription, voters, formDate } =
+  const { formName, formDescription, voters, formDate, formEndDate } =
     (formDetails && formDetails[0]) || {};
+  const { fullDate: startDateString, fullTime: startTimeString } =
+    transformIsoDateString(formDate);
+  const { fullDate: endDateString, fullTime: endTimeString } =
+    transformIsoDateString(formEndDate);
 
   useEffect(() => console.log(loading), [loading]);
 
@@ -73,13 +77,12 @@ export const FormPage = () => {
               {voters?.reduce((acc, curr) => acc + ` ${curr}`, "")}
             </p>
             <p>
-              <b className="font-extrabold">Data rozpoczęcia</b> {formDate}
+              <b className="font-extrabold">Data rozpoczęcia: </b>{" "}
+              {`${startDateString} - ${startTimeString}`}
             </p>
             <p>
-              <b className="font-extrabold">Czas trwania: 20</b> XX min
-            </p>
-            <p>
-              <b className="font-extrabold">Autor:</b> author
+              <b className="font-extrabold">Data zakończenia: </b>{" "}
+              {`${endDateString} - ${endTimeString}`}
             </p>
           </div>
 
