@@ -5,3 +5,4 @@ export { FormPage } from "./FormPage";
 export { ManagementDashboardPage } from "./ManagementDashboardPage";
 export { LoginPage } from "./LoginPage";
 export { NotFoundPage } from "./NotFoundPage";
+export { ResultsPage } from "./ResultsPage";

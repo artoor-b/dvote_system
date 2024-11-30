@@ -1,15 +1,21 @@
 import React, { useEffect, useState } from "react";
-import { Link, useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate, useLocation } from "react-router-dom";
 import { BackButton } from "../../components/BackButton/BackButton";
 import { useQueryCall } from "@ic-reactor/react";
 import { Spinner } from "../../components";
 import { toast } from "react-toastify";
 import { principal } from "@ic-reactor/react/dist/utils";
 import { transformIsoDateString } from "../../utils/transformIsoDateString";
+import { Principal } from "@dfinity/principal";
 
 export const FormPage = () => {
   let { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation(); // This gives you the current URL path
+
+  const goToResults = () => {
+    navigate(`${location.pathname}/results`);
+  };
 
   const [isFormReady, setIsFormReady] = useState(false);
 
@@ -48,8 +54,15 @@ export const FormPage = () => {
       setIsFormReady(() => true);
   }, [votingFormData, startFormLoading]);
 
-  const { formName, formDescription, voters, formDate, formEndDate } =
-    (formDetails && formDetails[0]) || {};
+  const {
+    formName,
+    formDescription,
+    voters,
+    formDate,
+    formEndDate,
+    status,
+    author,
+  } = (formDetails && formDetails[0]) || {};
   const { fullDate: startDateString, fullTime: startTimeString } =
     transformIsoDateString(formDate);
   const { fullDate: endDateString, fullTime: endTimeString } =
@@ -57,7 +70,15 @@ export const FormPage = () => {
 
   useEffect(() => console.log(loading), [loading]);
 
-  useEffect(() => console.log(formDetails), [formDetails]);
+  useEffect(() => {
+    console.log(formDetails);
+    if (formDetails && formDetails[0]) {
+      const principal = Principal.fromUint8Array(
+        formDetails[0].author._arr,
+      ).toText();
+      console.log(principal);
+    }
+  }, [formDetails]);
 
   return !loading ? (
     <div className="flex flex-col">
@@ -84,13 +105,24 @@ export const FormPage = () => {
               <b className="font-extrabold">Data zakończenia: </b>{" "}
               {`${endDateString} - ${endTimeString}`}
             </p>
+            <p>
+              <b className="font-extrabold">Przewodniczący komisji: </b>
+              {formDetails &&
+                formDetails[0] &&
+                Principal.fromUint8Array(formDetails[0].author._arr).toText()}
+            </p>
           </div>
 
           <button
-            className="px-10 py-5 bg-green-100 text-gray-800 w-[240px] rounded"
-            onClick={() => startVoting()}
+            className={`px-10 py-5 ${status !== "completed" ? "bg-green-100" : "bg-green-200"} text-gray-800 w-[240px] rounded`}
+            onClick={() => {
+              status !== "completed" && startVoting();
+              status === "completed" && goToResults();
+            }}
           >
-            Rozpocznij głosowanie
+            {status !== "completed"
+              ? "Rozpocznij głosowanie"
+              : "Przejdź do wyników"}
           </button>
         </div>
       </div>

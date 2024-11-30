@@ -5,8 +5,8 @@ import { Link } from "react-router-dom";
 
 export const BackButton = ({ backLocation, text }) => {
   return (
-    <Link to={backLocation}>
-      <ArrowBack className="mb-4" />
+    <Link to={backLocation} className="flex items-center mb-4 w-min">
+      <ArrowBack />
       {text}
     </Link>
   );

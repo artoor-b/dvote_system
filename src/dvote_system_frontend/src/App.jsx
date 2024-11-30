@@ -9,6 +9,7 @@ import {
   CreateFormPage,
   LoginPage,
   NotFoundPage,
+  ResultsPage,
 } from "./pages";
 import {
   BrowserRouter as Router,
@@ -97,6 +98,10 @@ function App() {
                             element={<FormDashboardPageWithRole />}
                           />
                           <Route path="/form/:id" element={<FormPage />} />
+                          <Route
+                            path="/form/:id/results"
+                            element={<ResultsPage />}
+                          />
                           <Route
                             path="/form/:id/vote"
                             element={<BallotFormPageWithRole />}

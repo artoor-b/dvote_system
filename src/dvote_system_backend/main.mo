@@ -80,6 +80,7 @@ shared ({ caller = initializer }) actor class () {
   public type Permission = {
     #assign_role;
     #create_form;
+    #read_results;
     #vote;
     #lowest;
   };
@@ -104,8 +105,9 @@ shared ({ caller = initializer }) actor class () {
     let role = get_role(pal);
     switch (role, perm) {
       case (? #owner or ? #admin, _) true;
-      case (? #organizationSecretary or ? #meetingChairperson or ? #meetingSecretary, #create_form or #vote) true;
+      case (? #organizationSecretary or ? #meetingChairperson or ? #meetingSecretary, #create_form or #vote or #read_results) true;
       case (? #voter, #vote) true;
+      case (? #voter, #read_results) true;
       case (? #authorized, #lowest) true;
       case (_, _) false;
     };
@@ -279,6 +281,12 @@ shared ({ caller = initializer }) actor class () {
     status : Text;
   };
 
+  type MutableExtendedFormEntry = FormEntry and {
+    createdAt : Text;
+    author : Principal;
+    var status : Text;
+  };
+
   // STORAGE
   stable let stableFormsStorage = Map.new<Text, ExtendedFormEntry>();
   stable let usersStorage = Map.new<Text, UserAssignedForm>();
@@ -402,7 +410,7 @@ shared ({ caller = initializer }) actor class () {
       Array.find<Text>(entry.voters, func(id) { id == userTextId }) != null;
     };
 
-    func checkDate((_, entry) : (Text, FormEntry)) : Bool {
+    func checkDate((_, entry) : (Text, ExtendedFormEntry)) : Bool {
       if (formType == "notStarted" or formType == "inProgress") {
         // incoming and current event currentDate < endDate
         var isEndDateGreater = Order.isGreater(getTime(entry.formEndDate));
@@ -414,7 +422,7 @@ shared ({ caller = initializer }) actor class () {
       } else if (formType == "completed") {
         var isEndDateLess = Order.isLess(getTime(entry.formEndDate));
 
-        if (isEndDateLess == true) {
+        if (isEndDateLess == true or entry.status == "completed") {
           true;
         } else {
           false;
@@ -522,6 +530,40 @@ shared ({ caller = initializer }) actor class () {
     );
   };
 
+  // get results from completed form
+  public shared ({ caller = voter }) func getPublicFormResults(formId : Text) : async [(Text, PublicQuestionAnswers)] {
+    var formData = Map.get(stableFormsStorage, thash, formId);
+    var formResults = Map.get(publicResultsStorage, thash, formId);
+
+    await require_permission(voter, #read_results);
+
+    func checkIfFormIsCompleted() : ?Bool {
+      switch (formData) {
+        case (?formEntry) {
+          if (formEntry.status == "completed") {
+            ?true;
+          } else {
+            ?false;
+          };
+        };
+        case (null) { return null };
+      };
+    };
+
+    switch (formResults) {
+      case (?entry) {
+        var convertToArr = Map.toArray(entry.results);
+        var isFormCompleted = checkIfFormIsCompleted();
+        if (isFormCompleted == ?true) {
+          return convertToArr;
+        } else {
+          return [];
+        };
+      };
+      case (null) { return [] };
+    };
+  };
+
   // RETRIEVE PUBLIC VOTE AND STORE IN PUBLIC VOTE AGGREGATOR ENTITY
   public shared ({ caller = submitter }) func storePublicVoteResult(formId : Text, questionsAnswers : PublicQuestionAnswers) : async Bool {
     var submitterPrincipalText = P.toText(submitter);
@@ -531,6 +573,7 @@ shared ({ caller = initializer }) actor class () {
     switch (getFormAggregator) {
       case (?entry) {
         Map.set(entry.results, thash, submitterPrincipalText, questionsAnswers);
+        var recordedSubmitters = Iter.toArray(Map.keys(entry.results));
 
         switch (getUserStorage) {
           case (?entry) {
@@ -541,6 +584,33 @@ shared ({ caller = initializer }) actor class () {
               case (null) {
                 var e = Array.append<Text>(entry.submittedForms, [formId]);
                 entry.submittedForms := e;
+
+                // mark form as closed if caller is the last remaining voter
+                // 1. get voters list from current form
+                // 2. get getPublicVoteAggregatedData - for current formId, get results, collect keys of principals
+                // 3. check length of both lists, if length of both is equal, then proceed else exit
+                // 4. sort voters list and sort voters from aggregator, compare them
+                let formData = Map.get(stableFormsStorage, thash, formId);
+
+                switch (formData) {
+                  case (?formDataEntry) {
+                    var formVoters = formDataEntry.voters;
+                    var sortedFormVoters = Array.sort(formVoters, Text.compare);
+                    // get entry.results keys array
+                    var sortedCurrentFormSubmitters = Array.sort(recordedSubmitters, Text.compare);
+
+                    if (Array.equal(sortedFormVoters, sortedCurrentFormSubmitters, Text.equal)) {
+                      let updatedEntry = {
+                        formDataEntry with
+                        // Update the fields you want to change
+                        status = "completed"
+                      };
+                      Map.set(stableFormsStorage, thash, formId, updatedEntry);
+                    };
+                  };
+                  case (null) {};
+                };
+
                 return true;
               };
             };
