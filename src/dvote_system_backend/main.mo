@@ -13,23 +13,11 @@ import AssocList "mo:base/AssocList";
 import Time "mo:base/Time";
 import DateTime "mo:datetime/DateTime";
 import Map "mo:map/Map";
-import LocalDateTime "mo:datetime/LocalDateTime";
 import Order "mo:base/Order";
 
-import { nhash } "mo:map/Map";
 import { thash } "mo:map/Map";
 
 shared ({ caller = initializer }) actor class () {
-  type Form = {
-    id : Nat;
-    author : Text;
-    voteType : Text;
-    title : Text;
-    status : Text;
-    scheduledAt : Text;
-    isAccessible : Bool;
-  };
-
   type QuestionAnswer = {
     id : Nat;
     answer : Text;
@@ -81,6 +69,7 @@ shared ({ caller = initializer }) actor class () {
     #assign_role;
     #create_form;
     #read_results;
+    #generate_secret_token;
     #vote;
     #lowest;
   };
@@ -108,6 +97,7 @@ shared ({ caller = initializer }) actor class () {
       case (? #organizationSecretary or ? #meetingChairperson or ? #meetingSecretary, #create_form or #vote or #read_results) true;
       case (? #voter, #vote) true;
       case (? #voter, #read_results) true;
+      case (? #voter, #generate_secret_token) true;
       case (? #authorized, #lowest) true;
       case (_, _) false;
     };
@@ -174,53 +164,10 @@ shared ({ caller = initializer }) actor class () {
     return caller;
   };
 
-  //
-  // MOCKS
-  //
-  //
-  //
-  // Sample data for the forms
-  let forms : [Form] = [
-    {
-      id = 1;
-      voteType = "Open";
-      title = "Form1";
-      author = "Arnold Schwarzenneger";
-      status = "open";
-      scheduledAt = "01.01.1900";
-      isAccessible = true;
-    },
-    {
-      id = 2;
-      voteType = "Open";
-      title = "Form2";
-      author = "Jan Kowalski";
-      duration = 10;
-      status = "completed";
-      scheduledAt = "01.01.1900";
-      isAccessible = true;
-    },
-    {
-      id = 3;
-      voteType = "Open";
-      title = "Form3";
-      author = "Jan Kowalski";
-      duration = 10;
-      status = "completed";
-      scheduledAt = "01.01.1900";
-      isAccessible = true;
-    },
-  ];
-
   public shared ({ caller }) func restrictedFunction() : async Text {
     let anononymousId = P.fromText("2vxsx-fae");
 
     if (caller == anononymousId) "anonymous" else P.toText(caller);
-  };
-
-  // Function to get open forms
-  public query func getOpenForms() : async [Form] {
-    return forms;
   };
 
   //
@@ -340,6 +287,8 @@ shared ({ caller = initializer }) actor class () {
     let creationTime = DateTime.now();
     let isoCreationTime = DateTime.toTextAdvanced(creationTime, #iso);
 
+    let formType = formEntry.formType;
+
     let extendedFormEntry : ExtendedFormEntry = {
       formEntry with
       createdAt = isoCreationTime;
@@ -356,7 +305,15 @@ shared ({ caller = initializer }) actor class () {
         // If the form ID does not exist, add it to the storage
         Map.set(stableFormsStorage, thash, formId, extendedFormEntry);
         // Create dedicated public form aggregator
-        await startPublicVoteAggregator(formId);
+        if (formType == "public") {
+          await startPublicVoteAggregator(formId);
+        } else if (formType == "secret") {
+          // create dedicated secret form aggregator
+          await startSecretVoteAggregator(formId);
+        } else {
+          // if formType is other than public or secret
+          throw Error.reject("Cannot create form!");
+        };
         assignUsersToForm(formId, formEntry.voters);
       };
       case (?_value) {
@@ -479,10 +436,12 @@ shared ({ caller = initializer }) actor class () {
   };
 
   //
-  // PUBLIC FORM STORAGE
+  // PUBLIC FORM STORAGE || SECRET FORM STORAGE
   //
   //
   stable let publicResultsStorage = Map.new<Text, PublicForm>();
+  stable let secretResultsStorage = Map.new<Text, SecretForm>(); // formId -> [{},{},{}] results
+  let secretVoteTokens : SecretTokens = Buffer.Buffer<Text>(1);
 
   // results: principal-id and its corresponding array with answers to specific form id
   type PublicForm = {
@@ -490,6 +449,20 @@ shared ({ caller = initializer }) actor class () {
     shouldCollect : Bool;
     finished : Bool;
   };
+
+  // store only results without connecting it to specific principal
+  type SecretForm = {
+    results : PublicQuestionAnswers;
+    submitters : Map.Map<Text, Bool>;
+  };
+
+  type SecretFormShared = {
+    results : PublicQuestionAnswers;
+    submitters : [(Text, Bool)];
+  };
+
+  // store generated tokens for secret vote
+  type SecretTokens = Buffer.Buffer<Text>;
 
   type PublicFormShared = {
     results : [(Text, PublicQuestionAnswers)];
@@ -513,6 +486,16 @@ shared ({ caller = initializer }) actor class () {
     Map.set(publicResultsStorage, thash, formId, newPublicForm);
   };
 
+  // create entry to collect secret votes
+  public func startSecretVoteAggregator(formId : Text) : async () {
+    let newSecretForm : SecretForm = {
+      results = [];
+      submitters = Map.new<Text, Bool>();
+    };
+
+    Map.set(secretResultsStorage, thash, formId, newSecretForm);
+  };
+
   // get all data from public results
   public query func getPublicVoteAggregatedData() : async [(Text, PublicFormShared)] {
     var convertToArr = Map.toArray(publicResultsStorage);
@@ -530,7 +513,58 @@ shared ({ caller = initializer }) actor class () {
     );
   };
 
-  // get results from completed form
+  // get all data from secret results
+  public query func getSecretVoteAggregatedData() : async [(Text, SecretFormShared)] {
+    var convertToArr = Map.toArray(secretResultsStorage);
+
+    Array.map<(Text, SecretForm), (Text, SecretFormShared)>(
+      convertToArr,
+      func((formId : Text, form : SecretForm)) : (Text, SecretFormShared) {
+        let sharedForm : SecretFormShared = {
+          results = form.results;
+          submitters = Map.toArray(form.submitters);
+        };
+        (formId, sharedForm);
+      },
+    );
+  };
+
+  // get results from completed secret forms
+  public shared ({ caller = voter }) func getSecretFormResults(formId : Text) : async PublicQuestionAnswers {
+    var formData = Map.get(stableFormsStorage, thash, formId);
+    // get secretResults
+    var formSecretResults = Map.get(secretResultsStorage, thash, formId);
+
+    await require_permission(voter, #read_results);
+
+    func checkIfFormIsCompleted() : ?Bool {
+      switch (formData) {
+        case (?formEntry) {
+          if (formEntry.status == "completed") {
+            ?true;
+          } else {
+            ?false;
+          };
+        };
+        case (null) { return null };
+      };
+    };
+
+    switch (formSecretResults) {
+      case (?entry) {
+        var convertToArr = entry.results;
+        var isFormCompleted = checkIfFormIsCompleted();
+        if (isFormCompleted == ?true) {
+          return convertToArr;
+        } else {
+          return [];
+        };
+      };
+      case (null) { return [] };
+    };
+  };
+
+  // get results from completed public form
   public shared ({ caller = voter }) func getPublicFormResults(formId : Text) : async [(Text, PublicQuestionAnswers)] {
     var formData = Map.get(stableFormsStorage, thash, formId);
     var formResults = Map.get(publicResultsStorage, thash, formId);
@@ -561,6 +595,121 @@ shared ({ caller = initializer }) actor class () {
         };
       };
       case (null) { return [] };
+    };
+  };
+
+  // GENERATE TOKEN TO CAST SECRET VOTE
+  public shared ({ caller = secretVoteCaller }) func getSecretVoteToken(formId : Text) : async {
+    token : Text;
+  } {
+    var voterPrincipalId = P.toText(secretVoteCaller);
+    await require_permission(secretVoteCaller, #generate_secret_token);
+
+    var getSubmittedUserForms = Map.get(usersStorage, thash, voterPrincipalId);
+
+    // check if caller is eligible to secret vote;
+    // check if user did not record previous vote;
+    var shouldUserStart : Bool = false;
+    switch (getSubmittedUserForms) {
+      case (?entry) {
+        var submittedForms = Array.indexOf<Text>(formId, entry.submittedForms, Text.equal);
+
+        switch (submittedForms) {
+          case (?_value) { shouldUserStart := false };
+          case (null) { shouldUserStart := true };
+        };
+      };
+      case (null) shouldUserStart := false;
+    };
+
+    if (not shouldUserStart) {
+      throw Error.reject("Vote already recorded");
+    };
+
+    let generatedToken = await generateRandomId();
+    secretVoteTokens.add(generatedToken);
+
+    {
+      token = generatedToken;
+    };
+  };
+
+  public shared ({ caller = secretVoteSubmitter }) func storeSecretVoteResult(formId : Text, questionsAnswers : PublicQuestionAnswers, tokenInput : Text) : async Bool {
+    var tokenIndex = Buffer.contains<Text>(secretVoteTokens, tokenInput, Text.equal);
+
+    if (not tokenIndex) {
+      throw Error.reject("Cannot verify token");
+    };
+
+    var submitterPrincipalText = P.toText(secretVoteSubmitter);
+    var getSecretFormAggregator = Map.get(secretResultsStorage, thash, formId); // formId: {results: [], submitters map(Text, Bool)}
+    var getUserStorage = Map.get(usersStorage, thash, submitterPrincipalText); // get submitter storage - submitted forms and assigned forms ids
+
+    switch (getSecretFormAggregator) {
+      case (?entry) {
+        var secretFormEntry = entry;
+        // Map.set(entry.results, thash, submitterPrincipalText, questionsAnswers);
+        switch (getUserStorage) {
+          case (?entry) {
+            var getSubmittedForm = Array.indexOf<Text>(formId, entry.submittedForms, Text.equal);
+
+            switch (getSubmittedForm) {
+              case (?_value) { return false };
+              case (null) {
+                // if form not submitted yet, cast secret answers and update aggregator.
+                let n = Array.append<{ answer : Text; questionId : Nat }>(secretFormEntry.results, questionsAnswers);
+
+                Map.set(secretFormEntry.submitters, thash, submitterPrincipalText, true);
+                let updatedEntry = {
+                  secretFormEntry with
+                  results = n;
+                };
+                Map.set(secretResultsStorage, thash, formId, updatedEntry);
+
+                var recordedSubmitters = Iter.toArray(Map.keys(secretFormEntry.submitters)); // get submitters list
+
+                var e = Array.append<Text>(entry.submittedForms, [formId]);
+                entry.submittedForms := e;
+
+                // mark form as closed if caller is the last remaining voter
+                // 1. get voters list from current form
+                // 2. get getPublicVoteAggregatedData - for current formId, get results, collect keys of principals
+                // 3. check length of both lists, if length of both is equal, then proceed else exit
+                // 4. sort voters list and sort voters from aggregator, compare them
+                let formData = Map.get(stableFormsStorage, thash, formId);
+
+                switch (formData) {
+                  case (?formDataEntry) {
+                    var formVoters = formDataEntry.voters;
+                    var sortedFormVoters = Array.sort(formVoters, Text.compare);
+
+                    // get entry.results keys array
+                    var sortedCurrentFormSubmitters = Array.sort(recordedSubmitters, Text.compare);
+
+                    if (Array.equal(sortedFormVoters, sortedCurrentFormSubmitters, Text.equal)) {
+                      let updatedEntry = {
+                        formDataEntry with
+                        // Update the fields you want to change
+                        status = "completed"
+                      };
+                      Map.set(stableFormsStorage, thash, formId, updatedEntry);
+                    };
+                  };
+                  case (null) {};
+                };
+
+                return true;
+              };
+            };
+
+            return true;
+          };
+          case (null) { return false };
+        };
+
+        return true;
+      };
+      case (null) { false };
     };
   };
 

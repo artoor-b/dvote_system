@@ -14,10 +14,8 @@ export const FormPage = () => {
   const location = useLocation(); // This gives you the current URL path
 
   const goToResults = () => {
-    navigate(`${location.pathname}/results`);
+    navigate(`${location.pathname}/results?type=${formType}`);
   };
-
-  const [isFormReady, setIsFormReady] = useState(false);
 
   const {
     call,
@@ -27,7 +25,6 @@ export const FormPage = () => {
     functionName: "getForm",
     args: [id],
     refetchOnMount: true,
-    onSuccess: () => console.log("SUCCESS"),
   });
 
   const {
@@ -48,20 +45,14 @@ export const FormPage = () => {
     if (data && Object.keys(data).length) navigate(`/form/${id}/vote`);
   };
 
-  useEffect(() => {
-    console.log("votingFormData", votingFormData, startFormLoading);
-    if (votingFormData && Object.keys(votingFormData).length)
-      setIsFormReady(() => true);
-  }, [votingFormData, startFormLoading]);
-
   const {
     formName,
     formDescription,
     voters,
     formDate,
     formEndDate,
+    formType,
     status,
-    author,
   } = (formDetails && formDetails[0]) || {};
   const { fullDate: startDateString, fullTime: startTimeString } =
     transformIsoDateString(formDate);
@@ -104,6 +95,10 @@ export const FormPage = () => {
             <p>
               <b className="font-extrabold">Data zakończenia: </b>{" "}
               {`${endDateString} - ${endTimeString}`}
+            </p>
+            <p>
+              <b>Typ głosowania: </b>
+              {formType}
             </p>
             <p>
               <b className="font-extrabold">Przewodniczący komisji: </b>

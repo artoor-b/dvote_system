@@ -1,16 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { QuestionBox } from "./components";
-
-import { fetchVotingQuestionsMock } from "../../mock/mock";
 import { mapQuestions } from "./utils/mapQuestions";
 import { Spinner } from "../../components";
-
-import { Link, useParams, useNavigate } from "react-router-dom";
-
+import { useParams } from "react-router-dom";
 import { useSearchParams } from "react-router-dom";
 import { SuccessBox } from "./components/SuccessBox/SuccessBox";
-
 import { useQueryCall } from "@ic-reactor/react";
+import { toast } from "react-toastify";
 
 export const BallotFormPage = () => {
   let { id } = useParams();
@@ -19,11 +15,10 @@ export const BallotFormPage = () => {
   const [questionAnswers, setQuestionAnswers] = useState({});
   const [searchParams, setSearchParams] = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
+  const [tokenInput, setTokenInput] = useState(null);
 
   const isBallotValid =
     Object.values(questionAnswers).every((answer) => answer) || false;
-
-  console.log("isBallotValid", isBallotValid);
 
   const {
     call: startForm,
@@ -33,8 +28,24 @@ export const BallotFormPage = () => {
     functionName: "startForm",
     args: [id],
     refetchOnMount: false,
-    onSuccess: () => console.log("SUCCESS"),
+    onError: (e) => toast(e.reject_message, { type: "error" }),
+    throwOnError: true,
   });
+
+  const {
+    call: getVoteToken,
+    data: voteToken,
+    loading: voteTokenLoading,
+  } = useQueryCall({
+    functionName: "getSecretVoteToken",
+    args: [id],
+    refetchOnMount: false,
+    onSuccess: () => toast("Pobrano token", { type: "success" }),
+    onError: (e) => toast(e.reject_message, { type: "error" }),
+    throwOnError: true,
+  });
+
+  const { formType, status } = (votingFormData && votingFormData[0]) || {};
 
   const {
     call: storePublicFormResult,
@@ -43,7 +54,28 @@ export const BallotFormPage = () => {
   } = useQueryCall({
     functionName: "storePublicVoteResult",
     refetchOnMount: false,
-    onSuccess: () => console.log("Submitted"),
+    onSuccess: () => toast("Głos oddany pomyślnie", { type: "success" }),
+    onError: (e) => {
+      toast(e.reject_message, { type: "error" });
+      setIsLoading(() => false);
+    },
+    throwOnError: true,
+  });
+
+  const {
+    call: storeSecretFormResult,
+    data: secretFormResult,
+    loading: secretFormResultLoading,
+  } = useQueryCall({
+    functionName: "storeSecretVoteResult",
+    refetchOnMount: false,
+    onSuccess: () => toast("Głos oddany pomyślnie", { type: "success" }),
+    onError: (e) => {
+      toast(e.reject_message, { type: "error" });
+      setIsLoading(() => false);
+      console.log(questionAnswers);
+    },
+    throwOnError: true,
   });
 
   const getQuestions = async () => {
@@ -51,13 +83,22 @@ export const BallotFormPage = () => {
       const [data] = await startForm();
       if (data && Object.keys(data).length) {
         setQuestionsData(() => data.questions);
-        console.log(data.questions);
+        console.log(data);
 
         const answersBox = mapQuestions(data.questions);
         setQuestionAnswers(() => answersBox);
       }
     } catch {
-      toast("something went wrong", { type: "error" });
+      toast("Błąd w trakcie pobierania pytań", { type: "error" });
+    }
+  };
+
+  const getToken = async () => {
+    try {
+      const tokenData = await getVoteToken();
+      console.log(tokenData);
+    } catch {
+      toast("Błąd podczas uzyskiwania tokenu", { type: "error" });
     }
   };
 
@@ -72,7 +113,14 @@ export const BallotFormPage = () => {
           answer,
         }),
       );
-      const data = await storePublicFormResult([id, mappedAnswers]);
+      const data =
+        formType === "public"
+          ? await storePublicFormResult([id, mappedAnswers]).catch(() =>
+              toast("Nie zatwierdzono głosowania", { type: "error" }),
+            )
+          : await storeSecretFormResult([id, mappedAnswers, tokenInput]).catch(
+              () => toast("Nie zatwierdzono głosowania", { type: "error" }),
+            );
       console.log("data", data);
 
       if (data) {
@@ -87,7 +135,12 @@ export const BallotFormPage = () => {
   };
 
   useEffect(() => {
+    console.log("rerend");
     getQuestions();
+
+    return () => {
+      setTokenInput(() => null);
+    };
   }, []);
 
   useEffect(() => {
@@ -111,15 +164,60 @@ export const BallotFormPage = () => {
               {questionsData.map((question) => (
                 <QuestionBox
                   setQuestionAnswers={setQuestionAnswers}
+                  questionAnswers={questionAnswers}
                   key={question.id}
                   question={question}
                 />
               ))}
+              {formType === "secret" && (
+                <button
+                  className="w-96 h-12 bg-gray-200 self-center m-10 disabled:bg-gray-500 disabled:blur-sm rounded-md"
+                  disabled={
+                    !isBallotValid ||
+                    formType !== "secret" ||
+                    (voteToken && voteToken.token) ||
+                    voteTokenLoading
+                  }
+                  onClick={(e) => {
+                    e.preventDefault();
+                    getToken();
+                  }}
+                >
+                  Pobierz token
+                </button>
+              )}
+              {voteTokenLoading && <Spinner />}
+              {voteToken && voteToken.token && (
+                <div className="flex text-white items-center">
+                  {voteToken.token}
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navigator.clipboard.writeText(voteToken.token);
+                    }}
+                    className="ml-2 bg-blue-500 text-white px-4 py-2 rounded-md"
+                  >
+                    Kopiuj
+                  </button>
+                </div>
+              )}
+              {voteToken && voteToken.token && (
+                <>
+                  <input
+                    type="text"
+                    placeholder="Wprowadź uzyskany token"
+                    onChange={(e) => setTokenInput(e.target.value)}
+                    className={`w-full border p-2 rounded-md border-gray-300`}
+                  />
+                </>
+              )}
               <button
                 onClick={() => onSubmitForm()}
                 type="button"
-                className="w-96 h-12 bg-gray-200 self-center m-10 disabled:bg-gray-500 disabled:blur-sm"
-                disabled={!isBallotValid}
+                className="w-96 h-12 bg-gray-200 self-center m-10 disabled:bg-gray-500 disabled:blur-sm rounded-md"
+                disabled={
+                  !isBallotValid || (formType === "secret" && !tokenInput)
+                }
               >
                 {!isLoading && "GŁOSUJĘ"}
               </button>

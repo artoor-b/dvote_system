@@ -27,7 +27,7 @@ export const FormGrid = ({ filterStatus }) => {
   };
 
   useEffect(() => {
-    console.log(loading);
+    console.log(loading, filterStatus);
     fetchForms();
   }, [filterStatus]);
 

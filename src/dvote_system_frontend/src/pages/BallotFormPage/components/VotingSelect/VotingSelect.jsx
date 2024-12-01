@@ -1,6 +1,10 @@
 import React from "react";
 
-export const VotingSelect = ({ questionId, setQuestionAnswers }) => {
+export const VotingSelect = ({
+  questionId,
+  setQuestionAnswers,
+  questionAnswers,
+}) => {
   return (
     <div className="flex gap-10 justify-end">
       <div className="flex gap-2">
@@ -12,6 +16,7 @@ export const VotingSelect = ({ questionId, setQuestionAnswers }) => {
             setQuestionAnswers((prev) => ({ ...prev, [questionId]: "for" }))
           }
           className="w-6 accent-blue-600"
+          checked={questionAnswers[questionId] === "for"}
         />
         <label htmlFor={`for-${questionId}`} className="text-green-400">
           Za
@@ -26,6 +31,7 @@ export const VotingSelect = ({ questionId, setQuestionAnswers }) => {
             setQuestionAnswers((prev) => ({ ...prev, [questionId]: "against" }))
           }
           className="w-6 accent-blue-600"
+          checked={questionAnswers[questionId] === "against"}
         />
         <label htmlFor={`against-${questionId}`} className="text-red-400">
           Przeciw
@@ -40,6 +46,7 @@ export const VotingSelect = ({ questionId, setQuestionAnswers }) => {
             setQuestionAnswers((prev) => ({ ...prev, [questionId]: "abstain" }))
           }
           className="w-6 accent-blue-600"
+          checked={questionAnswers[questionId] === "abstain"}
         />
         <label htmlFor={`abstain-${questionId}`} className="text-white">
           Wstrzymuję się
