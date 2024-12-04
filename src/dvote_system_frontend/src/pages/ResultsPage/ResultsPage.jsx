@@ -15,6 +15,11 @@ import { SecretResults } from "./SecretResults";
 
 export const ResultsPage = () => {
   let { id } = useParams();
+  const location = useLocation();
+  const { checkState } = location.state || {};
+
+  console.log("checkState", checkState);
+
   const [searchParams] = useSearchParams();
   const resultsType = searchParams.get("type");
 
@@ -73,7 +78,8 @@ export const ResultsPage = () => {
     console.log(formResults || secretFormResults);
   }, [formResults, secretFormResults]);
 
-  if (formResults && !formResults.length) return <NotFoundPage />;
+  if (formResults && !formResults.length)
+    return <NotFoundPage customMessage="Nie zarejestrowano wyników" />;
   if (formResultsLoading || secretFormResultsLoading) return <Spinner />;
 
   return (

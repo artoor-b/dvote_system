@@ -1,9 +1,10 @@
 import { useQueryCall } from "@ic-reactor/react";
 import React, { useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import { Spinner } from "../../components";
+import { BackButton, Spinner } from "../../components";
 import { SubmitInfo } from "./SubmitInfo";
 import { createIsoString } from "./utils/createIsoString";
+import Papa from "papaparse";
 
 export const CreateFormPage = ({ userRole }) => {
   const [formName, setFormName] = useState({
@@ -108,6 +109,40 @@ export const CreateFormPage = ({ userRole }) => {
   useEffect(() => {
     console.log(data, entry);
   }, [data, entry]);
+
+  useEffect(() => {
+    console.log("voters", voters);
+  }, [voters]);
+
+  const [csvFile, setCsvFile] = useState(null);
+  const [parsedData, setParsedData] = useState([]);
+
+  useEffect(() => console.log(parsedData, csvFile), [parsedData, csvFile]);
+
+  const handleFileChange = (e) => {
+    setCsvFile(e.target.files[0]);
+
+    const file = e.target.files[0];
+
+    if (!file) {
+      toast("Please upload a CSV file first.", { type: "warning" });
+      return;
+    }
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        const mappedIds = results.data.map(({ id }) => ({
+          value: `${id}`.trim(),
+          error: false,
+          errorMessage: "To pole jest wymagane.",
+        }));
+        setParsedData((prev) => [...prev, ...mappedIds]);
+        setVoters((prev) => [...prev, ...mappedIds]);
+      },
+    });
+  };
 
   const addQuestionInput = () => {
     const updatedQuestions = questions.map((question) => ({
@@ -333,6 +368,7 @@ export const CreateFormPage = ({ userRole }) => {
 
   return (
     <div className="flex flex-col p-6 min-h-min">
+      <BackButton text="Panel zarządzania" backLocation="/manage" />
       <section className="flex">
         {/* Left Column */}
         <div className="w-1/2 p-6 bg-white rounded-lg">
@@ -550,7 +586,7 @@ export const CreateFormPage = ({ userRole }) => {
           </div>
 
           {/* Should Hide Toggle */}
-          <div className="mb-4">
+          {/* <div className="mb-4">
             <label
               className="flex flex-col text-sm font-normal leading-4 mb-2 justify-self-start"
               htmlFor="shouldHide"
@@ -567,7 +603,7 @@ export const CreateFormPage = ({ userRole }) => {
                 <span>Niewidoczny</span>
               </div>
             </label>
-          </div>
+          </div> */}
 
           {/* Voters assignment input */}
           <div className="mb-6 flex flex-col">
@@ -608,13 +644,19 @@ export const CreateFormPage = ({ userRole }) => {
             >
               Dodaj głosującego
             </button>
-            <button
-              type="button"
-              onClick={() => {}}
-              className="bg-gray-400 text-white px-4 py-2 rounded-md mt-2 w-32 self-end"
+            <label
+              htmlFor="fileInput"
+              className="bg-gray-400 text-white px-4 py-2 rounded-md mt-2 w-32 self-end cursor-pointer text-center"
             >
-              Importuj
-            </button>
+              importuj
+            </label>
+            <input
+              style={{ display: "none" }}
+              id="fileInput"
+              type="file"
+              accept=".csv"
+              onChange={handleFileChange}
+            />
           </div>
         </div>
 

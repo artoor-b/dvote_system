@@ -41,7 +41,18 @@ export const FormGrid = ({ filterStatus }) => {
   const renderFormTiles = () =>
     formsData?.length > 0 ? (
       formsData.map(
-        ([id, { formType, formName, author, duration, formDate }]) => (
+        ([
+          id,
+          {
+            formType,
+            formName,
+            author,
+            duration,
+            formDate,
+            formEndDate,
+            status,
+          },
+        ]) => (
           <FormTile
             key={id}
             id={id}
@@ -50,6 +61,9 @@ export const FormGrid = ({ filterStatus }) => {
             author={author}
             duration={duration}
             startDate={transformIsoDateString(formDate)}
+            rawStartDate={formDate}
+            rawEndDate={formEndDate}
+            formStatus={status}
           />
         ),
       )

@@ -3,7 +3,13 @@ import { UserRoleContext } from "./UserRoleWrapper";
 
 export const withUserRole = (WrappedComponent) => {
   return (props) => {
-    const userRole = useContext(UserRoleContext);
-    return <WrappedComponent {...props} userRole={userRole} />;
+    const { userRole, setUserRole } = useContext(UserRoleContext);
+    return (
+      <WrappedComponent
+        {...props}
+        userRole={userRole}
+        setUserRole={setUserRole}
+      />
+    );
   };
 };

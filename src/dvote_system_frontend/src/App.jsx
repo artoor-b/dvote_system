@@ -10,6 +10,7 @@ import {
   LoginPage,
   NotFoundPage,
   ResultsPage,
+  UsersPage,
 } from "./pages";
 import {
   BrowserRouter as Router,
@@ -19,7 +20,7 @@ import {
 } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import { ProtectedRoute } from "./auth/ProtectedRoute";
-import { ActorProvider, useAuthState } from "@ic-reactor/react";
+import { ActorProvider } from "@ic-reactor/react";
 import {
   idlFactory,
   canisterId,
@@ -29,6 +30,7 @@ import { withUserRole } from "./auth/withUserRole";
 import { UserRoleWrapper } from "./auth/UserRoleWrapper";
 
 import { useAuth } from "@ic-reactor/react";
+import { ManageFormsPage } from "./pages/ManageFormsPage";
 
 function Fallback({ error, resetErrorBoundary }) {
   // Call resetErrorBoundary() to reset the error boundary and retry the render.
@@ -43,8 +45,6 @@ function Fallback({ error, resetErrorBoundary }) {
 }
 
 function App() {
-  // const { authenticated } = useAuthState();
-
   const { logout, identity, authenticated } = useAuth({
     onLoggedOut: () => {
       console.log("loggedout");
@@ -107,12 +107,27 @@ function App() {
                             element={<BallotFormPageWithRole />}
                           />
                           <Route
+                            path="/form/:id/authorizedVote"
+                            element={
+                              <BallotFormPageWithRole authorizedVoting />
+                            }
+                          />
+                          <Route
                             path="/manage"
                             element={<ManagementDashboardPageWithRole />}
                           />
                           <Route
                             path="/manage/form/create"
                             element={<CreateFormPageWithRole />}
+                          />
+                          <Route path="/manage/users" element={<UsersPage />} />
+                          <Route
+                            path="/manage/forms"
+                            element={<ManageFormsPage />}
+                          />
+                          <Route
+                            path="/manage/form/:id"
+                            element={<FormPage inspect />}
                           />
                         </Route>
                         <Route path="*" element={<NotFoundPage />} />

@@ -5,3 +5,4 @@ export { FormGrid } from "./FormGrid";
 export { FormTile } from "./FormTile";
 export { NavBar } from "./NavBar";
 export { Spinner } from "./Spinner";
+export { FormStatusIndicator } from "./FormStatusIndicator";

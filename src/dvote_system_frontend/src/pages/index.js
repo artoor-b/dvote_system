@@ -6,3 +6,4 @@ export { ManagementDashboardPage } from "./ManagementDashboardPage";
 export { LoginPage } from "./LoginPage";
 export { NotFoundPage } from "./NotFoundPage";
 export { ResultsPage } from "./ResultsPage";
+export { UsersPage } from "./UsersPage";

@@ -37,7 +37,7 @@ export const UserRoleWrapper = ({ children }) => {
   // }
 
   return (
-    <UserRoleContext.Provider value={userRole}>
+    <UserRoleContext.Provider value={{ userRole, setUserRole }}>
       {console.log(userRole)}
       {children}
     </UserRoleContext.Provider>

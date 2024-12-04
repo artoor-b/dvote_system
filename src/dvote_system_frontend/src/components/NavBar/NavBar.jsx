@@ -16,15 +16,19 @@ export const NavBar = ({ logout, identity, authenticated, userRole }) => {
         <div className="flex gap-10 items-center">
           {!isAnonymous && authenticated && (
             <>
-              <button className="rounded-md bg-gray-100 flex items-center px-5 text-xs leading-4 font-normal border border-gray-800 h-10">
-                <Link to={"/manage"}>Zarządzaj</Link>
-              </button>
-              <div className="bg-gray-50 flex justify-center items-center w-12 h-12 rounded-full text-sm leading-5 font-medium">
+              {userRole !== "voter" && (
+                <Link to={"/manage"}>
+                  <button className="rounded-md bg-gray-100 flex items-center px-5 text-xs leading-4 font-normal border border-gray-800 h-10">
+                    Zarządzaj
+                  </button>
+                </Link>
+              )}
+              {/* <div className="bg-gray-50 flex justify-center items-center w-12 h-12 rounded-full text-sm leading-5 font-medium">
                 JD
               </div>
               <p className="text-base leading-6 font-semibold text-gray-900">
                 John Doe
-              </p>
+              </p> */}
               <button
                 onClick={() => logout()}
                 className="bg-gray-800 text-gray-200 px-4 rounded text-xs leading-4 font-normal h-full"
