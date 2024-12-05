@@ -26,6 +26,7 @@ export const SubmitInfo = ({ isSuccessfull, formId, onGoBack }) => {
           <BackButton
             text="Stwórz kolejny"
             backLocation="/manage/form/create"
+            onClick={() => onGoBack()}
           />
           <BackButton
             text="Przejdź do formularza"
@@ -35,7 +36,7 @@ export const SubmitInfo = ({ isSuccessfull, formId, onGoBack }) => {
         </div>
       ) : (
         <div>
-          <Link onClick={() => onGoBack()} backLocation={"/manage/form/create"}>
+          <Link onClick={() => onGoBack()} to={"/manage/form/create"}>
             Stwórz kolejny
           </Link>
         </div>

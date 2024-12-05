@@ -2,6 +2,7 @@ import React, { useContext } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@ic-reactor/react";
 import { toast } from "react-toastify";
+import { ROLES_PL } from "../../auth/roles";
 
 export const NavBar = ({ logout, identity, authenticated, userRole }) => {
   const userIdentity = identity?.getPrincipal()?.toText();
@@ -9,11 +10,11 @@ export const NavBar = ({ logout, identity, authenticated, userRole }) => {
 
   return (
     <nav className="flex flex-col justify-between w-full mb-10">
-      <div className="flex justify-between w-full border-b-2 border-b-gray-800 p-4">
+      <div className="flex justify-center lg:justify-between w-full border-b-2 border-b-gray-800 p-4 flex-wrap gap-9">
         <p className="text-3xl leading-9 font-extralight flex items-center">
-          <Link to={"/forms"}>Voting Form</Link>
+          <Link to={"/forms"}>System Głosowań Online</Link>
         </p>
-        <div className="flex gap-10 items-center">
+        <div className="flex gap-9 items-center min-h-9 flex-col sm:flex-row">
           {!isAnonymous && authenticated && (
             <>
               {userRole !== "voter" && (
@@ -25,24 +26,30 @@ export const NavBar = ({ logout, identity, authenticated, userRole }) => {
               )}
               {/* <div className="bg-gray-50 flex justify-center items-center w-12 h-12 rounded-full text-sm leading-5 font-medium">
                 JD
+              </div> */}
+              <div className="flex justify-self-end items-center gap-2 ml-auto">
+                <p className="text-base leading-6 font-semibold text-gray-900">
+                  Zalogowano jako <b>{ROLES_PL[userRole] ?? ""}</b>
+                </p>
+                <button
+                  onClick={() => logout()}
+                  className="bg-gray-800 text-gray-200 px-4 rounded text-xs leading-4 font-normal min-h-9"
+                >
+                  Wyloguj
+                </button>
               </div>
-              <p className="text-base leading-6 font-semibold text-gray-900">
-                John Doe
-              </p> */}
-              <button
-                onClick={() => logout()}
-                className="bg-gray-800 text-gray-200 px-4 rounded text-xs leading-4 font-normal h-full"
-              >
-                Wyloguj
-              </button>
             </>
           )}
         </div>
       </div>
       <p className="text-right">
-        {isAnonymous
-          ? "Użytkownik anonimowy"
-          : `Zalogowano jako: ${userIdentity} ${userRole ?? ""}`}
+        {isAnonymous ? (
+          "Użytkownik anonimowy"
+        ) : (
+          <>
+            <b>Twój identyfikator</b>: {userIdentity}
+          </>
+        )}
       </p>
     </nav>
   );

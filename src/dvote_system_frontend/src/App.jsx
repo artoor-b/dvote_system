@@ -57,6 +57,7 @@ function App() {
   const ManagementDashboardPageWithRole = withUserRole(ManagementDashboardPage);
   const BallotFormPageWithRole = withUserRole(BallotFormPage);
   const NavBarWithRole = withUserRole(NavBar);
+  const FormPageWithRole = withUserRole(FormPage);
 
   return (
     <Router>
@@ -97,7 +98,10 @@ function App() {
                             path="/forms"
                             element={<FormDashboardPageWithRole />}
                           />
-                          <Route path="/form/:id" element={<FormPage />} />
+                          <Route
+                            path="/form/:id"
+                            element={<FormPageWithRole />}
+                          />
                           <Route
                             path="/form/:id/results"
                             element={<ResultsPage />}

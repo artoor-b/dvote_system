@@ -1,6 +1,7 @@
 import P "mo:base/Principal";
 import Text "mo:base/Text";
 import Nat "mo:base/Nat";
+import Int "mo:base/Int";
 import Error "mo:base/Error";
 import Principal "mo:base/Principal";
 import Random "mo:base/Random";
@@ -69,6 +70,7 @@ shared ({ caller = initializer }) actor class () {
     #read_roles;
     #create_form;
     #read_results;
+    #get_any_form;
     #inspect_results; // allowed users can inspect results before form being closed
     #close_public_form; // allowed users can close public form manually
     #vote_in_behalf; // allowed users can submit votes in behalf of allowed users
@@ -122,6 +124,10 @@ shared ({ caller = initializer }) actor class () {
     };
   };
 
+  private func require_permission_private(pal: Principal, perm: Permission) : Bool {
+    return has_permission(pal, perm);
+  };
+
   public shared ({ caller }) func assign_role(assignee : Principal, new_role : Role) : async Bool {
     await require_permission(caller, #assign_role);
 
@@ -172,20 +178,6 @@ shared ({ caller = initializer }) actor class () {
 
     return mappedRoles;
   };
-
-  // public shared ({ caller }) func get_role_requests() : async List.List<(Principal, Role)> {
-  //   await require_permission(caller, #assign_role);
-  //   return role_requests;
-  // };
-
-  // public shared ({ caller }) func my_role_request() : async ?Role {
-  //   AssocList.find<Principal, Role>(role_requests, caller, principal_eq);
-  // };
-
-  // public shared ({ caller }) func request_role(role : Role) : async Principal {
-  //   role_requests := AssocList.replace<Principal, Role>(role_requests, caller, principal_eq, ?role).0;
-  //   return caller;
-  // };
 
   public shared ({ caller }) func restrictedFunction() : async Text {
     let anononymousId = P.fromText("2vxsx-fae");
@@ -253,6 +245,16 @@ shared ({ caller = initializer }) actor class () {
 
   type ExtendedFormEntryWithAuthorizationFlag = ExtendedFormEntry and {
     formAuthorized: Bool
+  };
+
+  // send with current submitted voters list
+  type ExtendedFormEntryWithPublicVoters = ExtendedFormEntryWithAuthorizationFlag and {
+    currentSubmitList: [Text]
+  };
+
+  // with current submitted number of votes
+  type ExtendedFormEntryWithVotersNumber = ExtendedFormEntryWithAuthorizationFlag and {
+    currentSubmitNumber: ?Int;
   };
 
   type MutableExtendedFormEntry = FormEntry and {
@@ -357,17 +359,42 @@ shared ({ caller = initializer }) actor class () {
     var checkIfVoterGrantedAuthorization = checkFormAuthorization(id, voter);
     let getNew : ?ExtendedFormEntry = Map.get(stableFormsStorage, thash, id);
 
-    switch (getNew) {
-      case (?form) {
-        var withAuthorizationFlag : ExtendedFormEntryWithAuthorizationFlag = {
-          form with formAuthorized = checkIfVoterGrantedAuthorization;
-        };
+    func hasVoter((entry) : FormEntry) : Bool {
+      Array.find<Text>(entry.voters, func(id) { id == Principal.toText(voter) }) != null;
+    };
 
-        return ?withAuthorizationFlag;
+    var checkPermission = require_permission_private(voter, #get_any_form);
+
+    if (checkPermission) {
+      switch (getNew) {
+        case (?form) {
+          var withAuthorizationFlag : ExtendedFormEntryWithAuthorizationFlag = {
+            form with formAuthorized = checkIfVoterGrantedAuthorization;
+          };
+
+          return ?withAuthorizationFlag;
+        };
+        case null {
+          null;
+        };
       };
-      case null {
-        null;
-      };
+    } else {
+      switch (getNew) {
+        case (?form) {
+          var voterAllowedToView = hasVoter(form);
+
+          if (voterAllowedToView == false) return null;
+
+          var withAuthorizationFlag : ExtendedFormEntryWithAuthorizationFlag = {
+            form with formAuthorized = checkIfVoterGrantedAuthorization;
+          };
+
+          return ?withAuthorizationFlag;
+        };
+        case null {
+          null;
+        };
+      }
     };
   };
 
@@ -916,6 +943,48 @@ shared ({ caller = initializer }) actor class () {
         return true;
       };
       case (null) { false };
+    };
+  };
+
+  // get list of voters who already casted their votes
+  public shared ({ caller = inspector }) func getPublicSubmittedList(formId: Text) : async [Text] {
+    // requrie inspect_results
+    await require_permission(inspector, #inspect_results);
+    var formResults = Map.get(publicResultsStorage, thash, formId);
+
+    switch(formResults) {
+      case(?results) { 
+        var recordedSubmitters = Iter.toArray(Map.keys(results.results)); // get results, map only principal ids
+
+        return recordedSubmitters;
+       };
+      case(null) { return [] };
+    };
+  };
+
+  // get number of voters who already casted their votes for secret vote
+  public shared ({ caller = inspector }) func getSecretSubmitNumber(formId: Text) : async ?Text {
+    // requrie inspect_results
+    await require_permission(inspector, #inspect_results);
+
+    var getSecretFormAggregator = Map.get(secretResultsStorage, thash, formId); // formId: {results: [], submitters map(Text, Bool)}
+    var formData = Map.get(stableFormsStorage, thash, formId); // get assigned number of voters
+
+    switch(formData) {
+      case(?form) { 
+        let votersLength : Int = Array.size(form.voters);
+
+        switch(getSecretFormAggregator) {
+          case(?secretResults) { 
+          var recordedSubmitters : Int = Map.size(secretResults.submitters); // get results, map only principal ids
+
+          return ?(Int.toText(recordedSubmitters) # "/" # Int.toText(votersLength));
+        };
+        case(null) { return null };
+    };
+
+       };
+      case(null) { null };
     };
   };
 

@@ -109,7 +109,7 @@ export const BallotFormPage = ({ authorizedVoting = false }) => {
     refetchOnMount: false,
     // onSuccess: () => toast("Głos oddany pomyślnie", { type: "success" }),
     onError: (e) => {
-      toast(e.reject_message, { type: "error" });
+      // toast(e.reject_message, { type: "error" });
       setIsLoading(() => false);
     },
     throwOnError: true,
@@ -141,7 +141,7 @@ export const BallotFormPage = ({ authorizedVoting = false }) => {
     refetchOnMount: false,
     // onSuccess: () => toast("Głos oddany pomyślnie", { type: "success" }),
     onError: (e) => {
-      toast(e.reject_message, { type: "error" });
+      // toast(e.reject_message, { type: "error" });
       setIsLoading(() => false);
     },
     throwOnError: true,
@@ -156,7 +156,7 @@ export const BallotFormPage = ({ authorizedVoting = false }) => {
     refetchOnMount: false,
     // onSuccess: () => toast("Głos oddany pomyślnie", { type: "success" }),
     onError: (e) => {
-      toast(e.reject_message, { type: "error" });
+      // toast(e.reject_message, { type: "error" });
       setIsLoading(() => false);
       console.log(questionAnswers);
     },
@@ -165,13 +165,38 @@ export const BallotFormPage = ({ authorizedVoting = false }) => {
 
   const getQuestions = async () => {
     try {
-      const [data] =
-        authorizedVoting && authorizedVoteFlag
-          ? await startFormByAuthorization([
-              id,
-              Principal.fromText(searchParams.get("voteBy")),
-            ])
-          : await startForm();
+      try {
+        searchParams.get("voteBy") &&
+          Principal.fromText(searchParams.get("voteBy"));
+      } catch {
+        toast("Nieprawidłowy identyfikator uytkownika", { type: "error" });
+        navigate("/forms");
+        throw new Error();
+      }
+
+      let formData = null;
+
+      if (
+        authorizedVoting &&
+        authorizedVoteFlag &&
+        Principal.fromText(searchParams.get("voteBy"))
+      ) {
+        formData = await startFormByAuthorization([
+          id,
+          Principal.fromText(searchParams.get("voteBy")),
+        ]);
+      }
+
+      if (
+        !authorizedVoting &&
+        !authorizedVoteFlag &&
+        !searchParams.get("voteBy")
+      ) {
+        formData = await startForm();
+      }
+
+      const [data] = formData;
+
       if (data && Object.keys(data).length) {
         setQuestionsData(() => data.questions);
         console.log(data);
@@ -181,6 +206,7 @@ export const BallotFormPage = ({ authorizedVoting = false }) => {
       }
     } catch {
       toast("Błąd w trakcie pobierania pytań", { type: "error" });
+      return;
     }
   };
 
@@ -307,26 +333,21 @@ export const BallotFormPage = ({ authorizedVoting = false }) => {
     );
   }, [questionAnswers]);
 
-  useEffect(() => {
-    isAuthorizedVoting &&
-      console.log(Principal.fromText(searchParams.get("voteBy")));
-  }, [searchParams.get("voteBy")]);
-
-  try {
-    isAuthorizedVoting && Principal.fromText(searchParams.get("voteBy"));
-  } catch {
-    toast("Nieprawidłowy identyfikator uytkownika", { type: "error" });
-    navigate("/forms");
-  }
+  // useEffect(() => {
+  //   isAuthorizedVoting &&
+  //     console.log(Principal.fromText(searchParams.get("voteBy")));
+  // }, [searchParams.get("voteBy")]);
 
   return (
     <section className="flex justify-center">
       {searchParams.get("status") === "success" ? (
         <SuccessBox />
       ) : (
-        <form className="bg-gray-600 flex flex-col gap-5 p-10 m-10 w-screen">
+        <form className="bg-gray-600 flex flex-col gap-5 p-3 sm:p-10 sm:m-10 w-screen">
           {isAuthorizedVoting && (
-            <h1>Głosujesz w imieniu {searchParams.get("voteBy")}</h1>
+            <h1 className="flex flex-col text-blue-300 text-3xl">
+              Głosowanie w imieniu: <span>{searchParams.get("voteBy")}</span>
+            </h1>
           )}
           {questionsData && !isLoading ? (
             <>
@@ -374,20 +395,6 @@ export const BallotFormPage = ({ authorizedVoting = false }) => {
                   </button>
                 </div>
               )}
-              {/* {voteToken && voteToken.token && (
-                <div className="flex text-white items-center">
-                  {voteToken.token}
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      navigator.clipboard.writeText(voteToken.token);
-                    }}
-                    className="ml-2 bg-blue-500 text-white px-4 py-2 rounded-md"
-                  >
-                    Kopiuj
-                  </button>
-                </div>
-              )} */}
               {localVoteToken && (
                 <>
                   <input
@@ -398,23 +405,12 @@ export const BallotFormPage = ({ authorizedVoting = false }) => {
                   />
                 </>
               )}
-              {/* {getSecretAuthorizedVoteTokenData &&
-                getSecretAuthorizedVoteTokenData.token && (
-                  <>
-                    <input
-                      type="text"
-                      placeholder="Wprowadź uzyskany token"
-                      onChange={(e) => setTokenInput(e.target.value)}
-                      className={`w-full border p-2 rounded-md border-gray-300`}
-                    />
-                  </>
-                )} */}
               <button
                 onClick={() =>
                   isAuthorizedVoting ? onAuthorizedSubmit() : onSubmitForm()
                 }
                 type="button"
-                className="w-96 h-12 bg-gray-200 self-center m-10 disabled:bg-gray-500 disabled:blur-sm rounded-md"
+                className="h-12 w-40 sm:w-96 bg-gray-200 self-center m-10 disabled:bg-gray-500 disabled:blur-sm rounded-md"
                 disabled={
                   !isBallotValid || (formType === "secret" && !tokenInput)
                 }

@@ -1,9 +1,21 @@
-import React from "react";
+import React, { useState } from "react";
 import { useEffect } from "react";
-import { useNavigation, useSearchParams } from "react-router-dom";
+import { useNavigation, useSearchParams, useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 
 export const DashboardSwitcher = ({ statusParam, setStatusParameter }) => {
-  // const navigation = useNavigation();
+  const navigate = useNavigate();
+
+  const [idInput, setIdInput] = useState(null);
+
+  const onGo = (e) => {
+    e.preventDefault();
+    console.log("click");
+
+    idInput
+      ? navigate(`/form/${idInput}`)
+      : toast("Wpisz identyfikator formularza", { type: "warning" });
+  };
 
   const isNotStartedStatus = statusParam === "notStarted";
 
@@ -15,7 +27,7 @@ export const DashboardSwitcher = ({ statusParam, setStatusParameter }) => {
   };
 
   return (
-    <div className="flex mt-6">
+    <div className="flex mt-6 flex-wrap gap-2">
       <div className="flex gap-2">
         <button
           onClick={(e) => onButtonClick(e, "notStarted")}
@@ -35,9 +47,20 @@ export const DashboardSwitcher = ({ statusParam, setStatusParameter }) => {
         </button>
       </div>
       <div className="w-0.5 bg-gray-800 mx-6"></div>
-      <button className="px-14 bg-gray-800 text-gray-50 text-sm leading-5 font-medium rounded">
-        Znam identyfikator formularza
-      </button>
+      <div className="flex flex-wrap">
+        <input
+          type="text"
+          placeholder="Znam identyfikator formularza"
+          className="px-3 min-w-56 min-h-10 bg-gray-800 text-gray-50 text-sm leading-5 font-medium rounded"
+          onChange={(e) => setIdInput(e.target.value)}
+        />
+        <button
+          className="border-y border-r rounded-e-3xl font-extralight text-xs px-3"
+          onClick={(e) => onGo(e)}
+        >
+          Otwórz
+        </button>
+      </div>
     </div>
   );
 };

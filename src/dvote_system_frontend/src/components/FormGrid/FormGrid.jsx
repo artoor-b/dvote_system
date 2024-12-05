@@ -17,6 +17,7 @@ export const FormGrid = ({ filterStatus }) => {
   } = useQueryCall({
     functionName: "getUserForms",
     args: [filterStatus],
+    refetchOnMount: false,
   });
 
   const fetchForms = async () => {

@@ -8,8 +8,10 @@ import { principal } from "@ic-reactor/react/dist/utils";
 import { transformIsoDateString } from "../../utils/transformIsoDateString";
 import { Principal } from "@dfinity/principal";
 import { InspectFormPage } from "./InspectFormPage";
+import { NotFoundPage } from "../NotFoundPage";
+import { translateFormType } from "../../utils/translateFormType";
 
-export const FormPage = ({ inspect = false }) => {
+export const FormPage = ({ inspect = false, userRole }) => {
   const { identity } = useAuthState();
   let { id } = useParams();
   const navigate = useNavigate();
@@ -90,7 +92,7 @@ export const FormPage = ({ inspect = false }) => {
     functionName: "getAuthorizations",
     args: [id],
     refetchOnMount: true,
-    onError: (e) => toast(e.reject_message, { type: "error" }),
+    // onError: (e) => toast(e.reject_message, { type: "error" }),
   });
 
   // cancelAuthorization
@@ -113,6 +115,10 @@ export const FormPage = ({ inspect = false }) => {
       console.log("err");
     }
   };
+
+  useEffect(() => {
+    call();
+  }, []);
 
   useEffect(
     () => console.log("cancelAuthorizationData", cancelAuthorizationData),
@@ -154,7 +160,6 @@ export const FormPage = ({ inspect = false }) => {
         navigate(`/form/${id}/authorizedVote?voteBy=${authorized}`, {
           state: { authorizedVoteFlag: true },
         });
-      s;
     }
   };
 
@@ -204,148 +209,164 @@ export const FormPage = ({ inspect = false }) => {
 
   const isPlanned = new Date(formDate) >= new Date();
 
+  const isFormDataLoaded = formDetails && formDetails[0];
+
   return !loading ? (
-    <section>
-      <div className="flex flex-col">
-        <BackButton backLocation="/forms" />
-        <div className="flex gap-11 items-start">
-          <div>
-            <div className="p-10 bg-gray-600 text-gray-50 text-3xl font-extralight w-96 min-h-96 flex flex-col items-start rounded">
-              <h1 className="flex text-left">{formName}</h1>
-              <h2 className="text-lg mt-10">Opis Formularza:</h2>
-              <p className="flex font-normal text-sm mt-10">
-                {formDescription}
-              </p>
-            </div>
-          </div>
-          <div className="h-max min-w-[600px] bg-gray-800 text-white p-10 text-xs leading-4 font-normal flex flex-col">
-            <div className="flex flex-col items-start gap-3 mb-14 justify-start">
-              <div>
-                <b className="font-extrabold flex">Uprawnieni do głosowania:</b>{" "}
-                <ul className="list-disc list-inside">
-                  {voters?.map((voterId) => (
-                    <li className="justify-self-start" key={voterId}>
-                      {voterId}
-                    </li>
-                  ))}
-                </ul>
+    isFormDataLoaded ? (
+      <section className="flex flex-wrap">
+        <div className="flex flex-col flex-wrap">
+          <BackButton backLocation="/forms" />
+          <div className="flex gap-11 items-start flex-wrap content-center justify-center">
+            <div>
+              <div className="p-10 bg-gray-600 text-gray-50 text-3xl font-extralight w-full min-w-96 min-h-96 flex flex-col items-start rounded">
+                <h1 className="flex text-left">{formName}</h1>
+                <h2 className="text-xl font-extralight mt-12">
+                  Opis Formularza:
+                </h2>
+                <p className="flex font-normal text-sm mt-5">
+                  {formDescription}
+                </p>
               </div>
-              <p>
-                <b>Typ głosowania: </b>
-                {formType}
-              </p>
-              <p>
-                <b className="font-extrabold">Data rozpoczęcia: </b>{" "}
-                {`${startDateString} - ${startTimeString}`}
-              </p>
-              <p>
-                <b className="font-extrabold">Data zakończenia: </b>{" "}
-                {`${endDateString} - ${endTimeString}`}
-              </p>
-              <p className="">
-                <b className="font-extrabold flex">Przewodniczący komisji: </b>
-                {formDetails &&
-                  formDetails[0] &&
-                  Principal.fromUint8Array(formDetails[0].author._arr).toText()}
-              </p>
-              <p className="">
-                <b className="font-extrabold">Czy nadano upoważnienie: </b>
-                {formAuthorized ? "Tak" : "Nie"}
-              </p>
             </div>
+            <div className="h-max w-full xl:w-[600px] bg-gray-800 text-white p-10 text-xs leading-4 font-normal flex flex-col">
+              <div className="flex flex-col items-start gap-3 mb-14 justify-start">
+                <div>
+                  <b className="font-extrabold flex">
+                    Uprawnieni do głosowania:
+                  </b>{" "}
+                  <ul className="list-disc list-inside">
+                    {voters?.map((voterId) => (
+                      <li className="justify-self-start" key={voterId}>
+                        {voterId}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <p>
+                  <b>Typ głosowania: </b>
+                  {translateFormType(formType)}
+                </p>
+                <p>
+                  <b className="font-extrabold">Data rozpoczęcia: </b>{" "}
+                  {`${startDateString} - ${startTimeString}`}
+                </p>
+                <p>
+                  <b className="font-extrabold">Data zakończenia: </b>{" "}
+                  {`${endDateString} - ${endTimeString}`}
+                </p>
+                <p className="">
+                  <b className="font-extrabold flex">
+                    Przewodniczący komisji:{" "}
+                  </b>
+                  {formDetails &&
+                    formDetails[0] &&
+                    Principal.fromUint8Array(
+                      formDetails[0].author._arr,
+                    ).toText()}
+                </p>
+                <p className="">
+                  <b className="font-extrabold">Czy nadano upoważnienie: </b>
+                  {formAuthorized ? "Tak" : "Nie"}
+                </p>
+              </div>
 
-            {!inspect && (
-              <section className="flex flex-col">
-                <div className="flex flex-col gap-8">
-                  <button
-                    className={`px-10 py-5 ${status !== "completed" ? "bg-green-100" : "bg-green-200"} text-gray-800 w-[240px] rounded disabled:bg-gray-500`}
-                    onClick={() => {
-                      status !== "completed" && startVoting();
-                      status === "completed" && goToResults();
-                    }}
-                    disabled={formAuthorized && status !== "completed"}
-                  >
-                    {status !== "completed"
-                      ? "Rozpocznij głosowanie"
-                      : "Przejdź do wyników"}
-                  </button>
+              {!inspect && (
+                <section className="flex flex-col">
+                  <div className="flex flex-col gap-8">
+                    <button
+                      className={`px-10 py-5 ${status !== "completed" ? "bg-green-100" : "bg-green-200"} text-gray-800 w-[240px] rounded disabled:bg-gray-500`}
+                      onClick={() => {
+                        status !== "completed" && startVoting();
+                        status === "completed" && goToResults();
+                      }}
+                      disabled={formAuthorized && status !== "completed"}
+                    >
+                      {status !== "completed"
+                        ? "Rozpocznij głosowanie"
+                        : "Przejdź do wyników"}
+                    </button>
 
-                  {status === "notStarted" &&
-                    isPlanned &&
-                    identity.getPrincipal().compareTo(author) !== "eq" && (
-                      <>
-                        {!formAuthorized ? (
-                          <>
-                            lub
+                    {status === "notStarted" &&
+                      isPlanned &&
+                      identity.getPrincipal().compareTo(author) !== "eq" && (
+                        <>
+                          {!formAuthorized ? (
+                            <>
+                              lub
+                              <button
+                                id="grantAuthorization"
+                                className={`px-10 py-5 bg-violet-300 font-black text-gray-800 w-[240px] rounded justify-self-end`}
+                                onClick={() => {
+                                  grantAuthorization([id]);
+                                }}
+                              >
+                                Nadaj upoważnienie<b>*</b>
+                              </button>
+                            </>
+                          ) : (
                             <button
                               id="grantAuthorization"
-                              className={`px-10 py-5 bg-violet-300 font-black text-gray-800 w-[240px] rounded justify-self-end`}
+                              className={`px-10 py-5 bg-red-300 font-black text-gray-800 w-[240px] rounded justify-self-end`}
                               onClick={() => {
-                                grantAuthorization([id]);
+                                cancelAuthorization([id]);
                               }}
                             >
-                              Nadaj upoważnienie<b>*</b>
+                              Cofnij upoważnienie<b>*</b>
                             </button>
-                          </>
-                        ) : (
-                          <button
-                            id="grantAuthorization"
-                            className={`px-10 py-5 bg-red-300 font-black text-gray-800 w-[240px] rounded justify-self-end`}
-                            onClick={() => {
-                              cancelAuthorization([id]);
-                            }}
-                          >
-                            Cofnij upoważnienie<b>*</b>
-                          </button>
-                        )}
-                      </>
-                    )}
-                </div>
-                {status === "notStarted" && isPlanned && (
-                  <label htmlFor="grantAuthorization" className="mt-9">
-                    <i>
-                      <b>*</b>Nadając upoważnienie, wyrażasz zgodę na oddanie
-                      głosu w twoim imieniu przez przewodniczącego komisji.
-                    </i>
-                  </label>
-                )}
-              </section>
-            )}
-            {inspect && (
-              <button
-                className={`px-10 py-5 ${status !== "completed" ? "bg-red-100 text-gray-800" : "bg-gray-200 text-gray-400"} w-[240px] rounded`}
-                onClick={() => completeVotingForm()}
-                disabled={status === "completed"}
-              >
-                {status !== "completed"
-                  ? "Zakończ formularz"
-                  : "Głosowanie zakończono"}
-              </button>
-            )}
+                          )}
+                        </>
+                      )}
+                  </div>
+                  {status === "notStarted" && isPlanned && (
+                    <label htmlFor="grantAuthorization" className="mt-9">
+                      <i>
+                        <b>*</b>Nadając upoważnienie, wyrażasz zgodę na oddanie
+                        głosu w twoim imieniu przez przewodniczącego komisji.
+                      </i>
+                    </label>
+                  )}
+                </section>
+              )}
+              {inspect && (
+                <button
+                  className={`px-10 py-5 ${status !== "completed" ? "bg-red-100 text-gray-800" : "bg-gray-200 text-gray-400"} w-[240px] rounded`}
+                  onClick={() => completeVotingForm()}
+                  disabled={status === "completed"}
+                >
+                  {status !== "completed"
+                    ? "Zakończ formularz"
+                    : "Głosowanie zakończono"}
+                </button>
+              )}
 
-            {author && identity.getPrincipal().compareTo(author) === "eq" && (
-              <section>
-                <h2 className="text-2xl font-extralight flex mt-8 mb-5">
-                  Uzyskane upoważnienia
-                </h2>
-                <div className="flex flex-col items-start p-4 font-extralight text-sm bg-gray-600 gap-2">
-                  {getAuthorizationsData &&
-                    getAuthorizationsData.map(([principal, _]) => (
-                      <AuthorizationItem
-                        key={Principal.fromUint8Array(principal._arr).toText()}
-                        principal={principal}
-                        startAuthorizedVoting={startAuthorizedVoting}
-                        status={status}
-                      />
-                    ))}
-                </div>
-              </section>
-            )}
+              {author && identity.getPrincipal().compareTo(author) === "eq" && (
+                <section>
+                  <h2 className="text-2xl font-extralight flex mt-8 mb-5">
+                    Uzyskane upoważnienia
+                  </h2>
+                  <div className="flex flex-col items-start p-4 font-extralight text-sm bg-gray-600 gap-2">
+                    {getAuthorizationsData &&
+                      getAuthorizationsData.map(([principal, _]) => (
+                        <AuthorizationItem
+                          key={Principal.fromUint8Array(
+                            principal._arr,
+                          ).toText()}
+                          principal={principal}
+                          startAuthorizedVoting={startAuthorizedVoting}
+                          status={status}
+                        />
+                      ))}
+                  </div>
+                </section>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-      {inspect && <InspectFormPage />}
-    </section>
+        {inspect && <InspectFormPage formType={formType} />}
+      </section>
+    ) : (
+      <NotFoundPage />
+    )
   ) : (
     <Spinner />
   );

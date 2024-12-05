@@ -6,7 +6,7 @@ export const VotingSelect = ({
   questionAnswers,
 }) => {
   return (
-    <div className="flex gap-10 justify-end">
+    <div className="flex flex-col gap-3 mt-3 sm:mt-3 sm:flex-row sm:gap-10 sm:justify-end">
       <div className="flex gap-2">
         <input
           type="radio"
