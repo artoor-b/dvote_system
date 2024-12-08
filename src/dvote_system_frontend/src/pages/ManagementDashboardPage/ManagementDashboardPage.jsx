@@ -11,7 +11,7 @@ export const ManagementDashboardPage = ({ userRole }) => {
         {userRole !== "voter" && (
           <Link
             to="/manage/form/create"
-            className="flex items-center justify-center w-[150px] h-[150px] bg-blue-500 text-white font-semibold text-center rounded-sm cursor-pointer hover:bg-blue-600"
+            className="flex items-center justify-center w-[150px] h-[150px] bg-gray-500 text-white font-semibold text-center rounded-sm cursor-pointer hover:bg-gray-400"
           >
             <span>Utwórz nowy formularz</span>
           </Link>
@@ -19,14 +19,14 @@ export const ManagementDashboardPage = ({ userRole }) => {
 
         <Link
           to="/manage/forms"
-          className="flex items-center justify-center w-[150px] h-[150px] bg-yellow-500 text-white font-semibold text-center rounded-sm  cursor-pointer hover:bg-yellow-600"
+          className="flex items-center justify-center w-[150px] h-[150px] bg-gray-600 text-white font-semibold text-center rounded-sm  cursor-pointer hover:bg-gray-400"
         >
           <span>Zarządzaj formularzami</span>
         </Link>
 
         <Link
           to="/manage/users"
-          className="flex items-center justify-center w-[150px] h-[150px] bg-red-500 text-white font-semibold text-center rounded-sm cursor-pointer hover:bg-red-600"
+          className="flex items-center justify-center w-[150px] h-[150px] bg-gray-700 text-white font-semibold text-center rounded-sm cursor-pointer hover:bg-gray-400"
         >
           <span>Zarządzaj użytkownikami</span>
         </Link>
