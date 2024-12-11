@@ -25,14 +25,14 @@ export const SecretResults = ({ formResults }) => {
         <thead className="bg-gray-200">
           <tr>
             <th className="border border-gray-300 px-4 py-2 text-left">
-              Answer
+              Odpowiedź
             </th>
             {questionIds.map((questionId) => (
               <th
                 key={questionId}
                 className="border border-gray-300 px-4 py-2 text-left"
               >
-                Question {questionId}
+                Pytanie {questionId}
               </th>
             ))}
           </tr>
@@ -41,7 +41,7 @@ export const SecretResults = ({ formResults }) => {
           {["for", "against", "abstain"].map((answer) => (
             <tr key={answer} className="odd:bg-gray-100 even:bg-white">
               <td className="border border-gray-300 px-4 py-2 font-medium">
-                {answer}
+                {translateVote[answer.toUpperCase()]}
               </td>
               {questionIds.map((questionId) => {
                 const totalVotes = groupedData[questionId].total;
